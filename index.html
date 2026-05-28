@@ -673,7 +673,13 @@ const METRICS = [
   { key:"cardio",   label:"15-Lap Shuttle",  sub:"Stamina",      emoji:"🏃", svg:ICONS.cardio,  iconLeft:true  },
   { key:"passing",  label:"Passing Test",    sub:"Coordination", emoji:"🙌", svg:ICONS.pass,    iconLeft:true  },
 ];
-const PERIOD_COLORS = ["#d1d5db","#93c5fd","#f59e0b","#10b981","#1e3a5f","#7c3aed","#ec4899","#0891b2"];
+// Colors assigned by recency (latest period = strongest navy).
+// Index 0 = latest, 1 = previous, 2 = older, etc.
+const RECENCY_COLORS = ["#1e3a5f", "#0891b2", "#f59e0b", "#7c3aed", "#ec4899", "#16a34a", "#dc2626", "#64748b"];
+function periodColor(periodIdx, totalPeriods) {
+  const ago = (totalPeriods - 1) - periodIdx; // 0 for latest
+  return RECENCY_COLORS[Math.min(ago, RECENCY_COLORS.length - 1)];
+}
 
 // =====================================================
 // 👇 BUILT-IN EDITORS — these Google accounts always have edit rights.
@@ -1011,7 +1017,7 @@ function renderPeriodBtns() {
   const team = getTeam();
   let html = `<button class="period-btn ${visiblePeriods.has(-1)?"":"off"}" style="border:1.5px solid #9ca3af;color:#6b7280;${visiblePeriods.has(-1)?"background:#f3f4f6":""}" onclick="togglePeriod(-1)">■ Team Avg</button>`;
   team.periods.forEach((p, i) => {
-    const c = PERIOD_COLORS[Math.min(i, PERIOD_COLORS.length-1)];
+    const c = periodColor(i, team.periods.length);
     const on = visiblePeriods.has(i);
     const isLast = i === team.periods.length-1;
     const prefix = isLast ? "●─" : "- -";
@@ -1092,21 +1098,36 @@ function renderRadar() {
     const r = (lv / 10) * maxR;
     svg += `<text x="${cx + r}" y="${cy + 3.5}" font-size="9.5" fill="#3a4452" font-family="monospace" text-anchor="middle" font-weight="700">${lv}</text>`;
   }
+  // Team average — subtle filled baseline, drawn first (behind everything)
   if (visiblePeriods.has(-1) && teamAvg) {
-    svg += `<polygon points="${makePolygon(teamAvg,cx,cy,maxR)}" fill="#a8b0bc" fill-opacity="0.62" stroke="#6b7280" stroke-width="1.2" stroke-linejoin="round"/>`;
+    svg += `<polygon points="${makePolygon(teamAvg,cx,cy,maxR)}" fill="#9aa3b1" fill-opacity="0.30" stroke="#7b8494" stroke-width="1.2" stroke-dasharray="2 2" stroke-linejoin="round"/>`;
   }
-  player.scores.forEach((test, pi) => {
+
+  // Player periods — draw OLDER ones first so the latest sits on top.
+  const totalPeriods = player.scores.length;
+  const order = player.scores.map((_, i) => i).sort((a, b) => a - b); // oldest→newest
+  order.forEach((pi) => {
     if (!visiblePeriods.has(pi)) return;
-    const color = PERIOD_COLORS[Math.min(pi, PERIOD_COLORS.length-1)];
-    const isLatest = pi === player.scores.length - 1;
-    svg += `<polygon points="${makePolygon(test,cx,cy,maxR)}" fill="${color}" fill-opacity="${isLatest?0.14:0.03}" stroke="${color}" stroke-width="${isLatest?2.8:2}" stroke-linejoin="round" ${isLatest?'':'stroke-dasharray="7 4"'}/>`;
-    if (isLatest) {
-      METRICS.forEach((m,i) => {
-        const r = (test[m.key]/10)*maxR;
-        const p = polar(cx,cy,r,i*step);
-        svg += `<circle cx="${p.x}" cy="${p.y}" r="4.5" fill="${color}" stroke="#fff" stroke-width="2"/>`;
-      });
-    }
+    const test = player.scores[pi];
+    const color = periodColor(pi, totalPeriods);
+    const isLatest = pi === totalPeriods - 1;
+    // No fill on non-latest (keeps lines readable when overlapping); thin colored fill on latest
+    const fillOp = isLatest ? 0.18 : 0;
+    const sw = isLatest ? 3 : 2;
+    svg += `<polygon points="${makePolygon(test,cx,cy,maxR)}" fill="${color}" fill-opacity="${fillOp}" stroke="${color}" stroke-width="${sw}" stroke-linejoin="round" ${isLatest?'':'stroke-dasharray="6 4"'}/>`;
+  });
+  // Draw vertex dots on top — latest gets big dots, others get small dots
+  order.forEach((pi) => {
+    if (!visiblePeriods.has(pi)) return;
+    const test = player.scores[pi];
+    const color = periodColor(pi, totalPeriods);
+    const isLatest = pi === totalPeriods - 1;
+    const rr = isLatest ? 4.5 : 3;
+    METRICS.forEach((m,i) => {
+      const r = (test[m.key]/10)*maxR;
+      const p = polar(cx,cy,r,i*step);
+      svg += `<circle cx="${p.x}" cy="${p.y}" r="${rr}" fill="${color}" stroke="#fff" stroke-width="${isLatest?2:1.4}"/>`;
+    });
   });
   METRICS.forEach((m, i) => {
     const angle = i * step;
@@ -1131,10 +1152,10 @@ function renderRadar() {
   }
   team.periods.forEach((p, idx) => {
     if (!visiblePeriods.has(idx)) return;
-    const c = PERIOD_COLORS[Math.min(idx, PERIOD_COLORS.length-1)];
+    const c = periodColor(idx, team.periods.length);
     const isLast = idx === team.periods.length-1;
     items.push(`<span class="legend-item">
-      <span class="legend-swatch" style="background:${isLast?c:'transparent'};border:${isLast?'none':`1.5px dashed ${c}`}"></span>
+      <span class="legend-swatch" style="background:${isLast?c:'transparent'};border:${isLast?'none':`2px dashed ${c}`}"></span>
       ${escapeHTML(p)}${isLast?' (latest)':''}
     </span>`);
   });
@@ -1175,7 +1196,7 @@ function renderTrends() {
       svg += `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(" ")}" fill="none" stroke="#1e3a5f" stroke-width="2" stroke-linejoin="round"/>`;
     }
     pts.forEach((p,i) => {
-      const c = PERIOD_COLORS[Math.min(i, PERIOD_COLORS.length-1)];
+      const c = periodColor(i, vals.length);
       svg += `<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="${c}" stroke="#fff" stroke-width="1.5"/>`;
       svg += `<text x="${p.x}" y="${p.y-8}" font-size="8" font-weight="700" fill="#374151" text-anchor="middle" font-family="monospace">${vals[i].toFixed(1)}</text>`;
       const pname = team.periods[i] || `T${i+1}`;
