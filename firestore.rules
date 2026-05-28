@@ -1,9 +1,42 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Each user can only read/write their own data document
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Built-in editors — these accounts always have edit rights.
+    // MUST match the BASE_EDITORS list in index.html.
+    function isBaseEditor() {
+      return isSignedIn() && request.auth.token.email in [
+        'hanyun@ibsh.tw',
+        'jess@ibsh.tw'
+      ];
+    }
+
+    function rolesDoc() {
+      return get(/databases/$(database)/documents/config/roles).data;
+    }
+
+    function isEditor() {
+      return isBaseEditor()
+        || ( isSignedIn()
+          && exists(/databases/$(database)/documents/config/roles)
+          && request.auth.token.email in rolesDoc().editors );
+    }
+
+    // Shared team data: anyone signed in can READ, only editors can WRITE
+    match /appData/{docId} {
+      allow read:  if isSignedIn();
+      allow write: if isEditor();
+    }
+
+    // Roles config: anyone signed in can READ (to learn their own role),
+    // only editors can WRITE (to add/remove additional editors)
+    match /config/roles {
+      allow read:  if isSignedIn();
+      allow write: if isEditor();
     }
   }
 }

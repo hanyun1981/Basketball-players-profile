@@ -68,6 +68,35 @@
     background: transparent;
   }
   .signout-btn:hover { background: rgba(0,0,0,0.06); color: var(--red); }
+  .role-badge {
+    font-size: 9.5px; font-weight: 800; padding: 2px 7px;
+    border-radius: 10px; letter-spacing: 0.3px; white-space: nowrap;
+  }
+  .role-badge.editor { background: #ecfdf5; color: #047857; }
+  .role-badge.viewer { background: #f3f4f6; color: #6b7280; }
+
+  /* Access management */
+  .access-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 7px 10px; background: #f9fafb; border-radius: 8px;
+    margin-bottom: 6px; font-size: 12.5px; color: #374151;
+  }
+  .access-row .owner-tag {
+    font-size: 9.5px; font-weight: 800; color: var(--navy);
+    background: #eff6ff; padding: 1px 6px; border-radius: 8px; margin-left: 6px;
+  }
+  .access-row .x-mini {
+    width: 22px; height: 22px; border-radius: 6px;
+    background: #fee2e2; color: var(--red); font-size: 14px; line-height: 1;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .access-row .x-mini:hover { background: #fecaca; }
+  .setup-hint {
+    background: #fef3c7; border: 1px solid #fbbf24; border-radius: 10px;
+    padding: 12px 14px; font-size: 11.5px; color: #78350f;
+    line-height: 1.55; text-align: left; margin-top: 14px;
+  }
+  .setup-hint code { background: #fff; padding: 1px 4px; border-radius: 4px; font-family: monospace; font-size: 11px; }
 
   /* ===== Login overlay ===== */
   .login-overlay {
@@ -368,6 +397,7 @@
     <div class="user-info">
       <div class="user-avatar" id="userAvatar">?</div>
       <span class="user-name" id="userName">—</span>
+      <span class="role-badge viewer" id="roleBadge">…</span>
     </div>
     <div style="display:flex;align-items:center;gap:6px">
       <span class="sync-indicator" id="syncIndicator"><span class="dot"></span><span id="syncText">…</span></span>
@@ -416,6 +446,18 @@
       <div style="margin-top:8px"><button class="secondary-btn" onclick="addPlayer()">+ Add Player</button></div>
     </div>
 
+    <div class="editor-section" id="accessSection">
+      <h3>🔑 Manage Access</h3>
+      <p style="font-size:11.5px;color:var(--gray);margin-bottom:10px;line-height:1.5">
+        <b>Editors</b> can add and edit data. Everyone else who signs in can only <b>view</b>. Add a coach's Google email to give them editing rights.
+      </p>
+      <div id="editorEmailList"></div>
+      <div class="field-row" style="margin-top:8px">
+        <input type="email" class="text-input" id="newEditorEmail" placeholder="coach@gmail.com">
+        <button class="secondary-btn" onclick="addEditor()">+ Add Editor</button>
+      </div>
+    </div>
+
     <div class="editor-section">
       <h3>💾 Backup & Restore</h3>
       <p style="font-size:11.5px;color:var(--gray);margin-bottom:8px;line-height:1.5">
@@ -459,7 +501,8 @@ const FIREBASE_CONFIG = {
 let app, auth, db;
 let currentUser = null;
 let saveTimer = null;
-let unsubscribeSnapshot = null;
+let unsubscribeData = null;
+let unsubscribeRoles = null;
 
 function isConfigured() {
   return FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY_HERE";
@@ -499,24 +542,39 @@ window.firebaseAPI = {
   },
 
   async signOutUser() {
-    if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+    if (unsubscribeData) { unsubscribeData(); unsubscribeData = null; }
+    if (unsubscribeRoles) { unsubscribeRoles(); unsubscribeRoles = null; }
     await signOut(auth);
   },
 
   subscribeData(callback) {
     if (!currentUser) return;
-    if (unsubscribeSnapshot) unsubscribeSnapshot();
-    const ref = doc(db, "users", currentUser.uid);
-    unsubscribeSnapshot = onSnapshot(ref, (snap) => {
-      if (snap.exists()) {
-        callback(snap.data(), { fromCache: snap.metadata.fromCache });
-      } else {
-        callback(null, { fromCache: snap.metadata.fromCache });
-      }
+    if (unsubscribeData) unsubscribeData();
+    const ref = doc(db, "appData", "main");
+    unsubscribeData = onSnapshot(ref, (snap) => {
+      const meta = { fromCache: snap.metadata.fromCache, hasPendingWrites: snap.metadata.hasPendingWrites };
+      callback(snap.exists() ? snap.data() : null, meta);
     }, (err) => {
-      console.error("Snapshot error:", err);
+      console.error("Data snapshot error:", err);
       window.appOnSyncError && window.appOnSyncError(err);
     });
+  },
+
+  subscribeRoles(callback) {
+    if (!currentUser) return;
+    if (unsubscribeRoles) unsubscribeRoles();
+    const ref = doc(db, "config", "roles");
+    unsubscribeRoles = onSnapshot(ref, (snap) => {
+      callback(snap.exists() ? snap.data() : null);
+    }, (err) => {
+      console.warn("Roles snapshot error:", err);
+      callback(null);
+    });
+  },
+
+  async saveRoles(rolesObj) {
+    const ref = doc(db, "config", "roles");
+    await setDoc(ref, rolesObj);
   },
 
   // Debounced write (800ms after last edit)
@@ -526,7 +584,7 @@ window.firebaseAPI = {
     window.appOnSyncStatus && window.appOnSyncStatus("syncing");
     saveTimer = setTimeout(async () => {
       try {
-        const ref = doc(db, "users", currentUser.uid);
+        const ref = doc(db, "appData", "main");
         await setDoc(ref, stateObj);
         window.appOnSyncStatus && window.appOnSyncStatus("synced");
       } catch (err) {
@@ -542,7 +600,7 @@ window.firebaseAPI = {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     try {
       window.appOnSyncStatus && window.appOnSyncStatus("syncing");
-      const ref = doc(db, "users", currentUser.uid);
+      const ref = doc(db, "appData", "main");
       await setDoc(ref, stateObj);
       window.appOnSyncStatus && window.appOnSyncStatus("synced");
     } catch (err) {
@@ -617,6 +675,28 @@ const METRICS = [
 ];
 const PERIOD_COLORS = ["#d1d5db","#93c5fd","#f59e0b","#10b981","#1e3a5f","#7c3aed","#ec4899","#0891b2"];
 
+// =====================================================
+// 👇 BUILT-IN EDITORS — these Google accounts always have edit rights.
+//    They cannot be removed from the app. This MUST match the same list
+//    in your Firestore rules (the isBaseEditor() function). See README.md.
+// =====================================================
+const BASE_EDITORS = ["hanyun@ibsh.tw", "jess@ibsh.tw"];
+// =====================================================
+
+let authedUser = null;     // the signed-in Firebase user
+let userRole = "viewer";    // "editor" | "viewer"
+let editorEmails = [];      // additional editor emails from config/roles
+let rolesLoaded = false;
+
+function computeRole() {
+  const email = ((authedUser && authedUser.email) || "").toLowerCase();
+  const isBase = BASE_EDITORS.map(e => e.toLowerCase()).includes(email);
+  const inList = editorEmails.map(e => String(e).toLowerCase()).includes(email);
+  userRole = (isBase || inList) ? "editor" : "viewer";
+  return userRole;
+}
+function isEditor() { return userRole === "editor"; }
+
 function makeSampleData() {
   return {
     teams: [
@@ -650,13 +730,13 @@ function makeSampleData() {
 let state = makeSampleData();
 let visiblePeriods = new Set();
 let currentView = "radar";
-let suppressNextSave = false; // when applying remote update, don't echo back
 
 function getTeam() { return state.teams.find(t => t.id === state.selectedTeamId) || state.teams[0]; }
 function getPlayer() { const team = getTeam(); return team ? team.players.find(p => p.id === state.selectedPlayerId) || team.players[0] : null; }
 
 function ensureSelection() {
-  if (!state.teams || state.teams.length === 0) { state = makeSampleData(); return; }
+  if (!state.teams) state.teams = [];
+  if (state.teams.length === 0) { state.selectedTeamId = null; state.selectedPlayerId = null; return; }
   if (!state.teams.find(t => t.id === state.selectedTeamId)) {
     state.selectedTeamId = state.teams[0]?.id;
   }
@@ -673,7 +753,7 @@ function resetVisiblePeriods() {
 }
 
 function persist() {
-  if (suppressNextSave) { suppressNextSave = false; return; }
+  if (!isEditor()) return;
   if (window.firebaseAPI && window.firebaseAPI.isConfigured()) {
     window.firebaseAPI.saveData(state);
   }
@@ -881,16 +961,26 @@ function escapeHTML(s) {
 
 // Rendering
 function renderTeamTabs() {
-  const html = state.teams.map(t => `
+  const tabs = state.teams.map(t => `
     <button class="team-tab ${t.id === state.selectedTeamId ? 'active' : ''}" onclick="selectTeam('${t.id}')">${escapeHTML(t.name)}</button>
-  `).join("") + `<button class="team-add" onclick="addTeam()">+</button>`;
-  document.getElementById("teamTabs").innerHTML = html;
+  `).join("");
+  const addBtn = isEditor() ? `<button class="team-add" onclick="addTeam()">+</button>` : "";
+  document.getElementById("teamTabs").innerHTML = tabs + addBtn;
 }
 function renderModeToggle() {
+  const editBtn = isEditor()
+    ? `<button class="mode-btn ${state.mode==='editor'?'active':''}" onclick="setMode('editor')">✏️ Edit Data</button>`
+    : "";
   document.getElementById("modeToggle").innerHTML = `
     <button class="mode-btn ${state.mode==='dashboard'?'active':''}" onclick="setMode('dashboard')">📊 Dashboard</button>
-    <button class="mode-btn ${state.mode==='editor'?'active':''}" onclick="setMode('editor')">✏️ Edit Data</button>
+    ${editBtn}
   `;
+}
+function renderUserRole() {
+  const badge = document.getElementById("roleBadge");
+  if (!badge) return;
+  if (userRole === "editor") { badge.className = "role-badge editor"; badge.textContent = "✏️ Editor"; }
+  else { badge.className = "role-badge viewer"; badge.textContent = "👁 View only"; }
 }
 function setMode(m) { state.mode = m; renderAll(); persist(); }
 
@@ -1147,7 +1237,50 @@ function renderEditor() {
   teamInput.oninput = onTeamNameChange;
   renderPeriodChips();
   renderPlayerEditList();
+  renderAccessPanel();
   document.getElementById("playerCount").textContent = team.players.length;
+}
+
+function renderAccessPanel() {
+  const list = document.getElementById("editorEmailList");
+  if (!list) return;
+  const rows = [];
+  const baseLower = BASE_EDITORS.map(e => e.toLowerCase());
+  BASE_EDITORS.forEach(em => {
+    rows.push(`<div class="access-row"><span>${escapeHTML(em)}<span class="owner-tag">BUILT-IN</span></span></div>`);
+  });
+  editorEmails.forEach(em => {
+    if (baseLower.includes(String(em).toLowerCase())) return;
+    rows.push(`<div class="access-row"><span>${escapeHTML(em)}</span><button class="x-mini" onclick="removeEditor('${escapeHTML(em)}')" title="Remove">×</button></div>`);
+  });
+  if (rows.length === 0) rows.push(`<div style="font-size:12px;color:var(--gray);padding:4px">No additional editors.</div>`);
+  list.innerHTML = rows.join("");
+}
+
+async function addEditor() {
+  const input = document.getElementById("newEditorEmail");
+  const email = (input.value || "").trim().toLowerCase();
+  if (!email || !email.includes("@") || !email.includes(".")) { toast("Enter a valid email", true); return; }
+  if (editorEmails.map(e => String(e).toLowerCase()).includes(email)) { toast("Already an editor"); input.value = ""; return; }
+  const next = [...editorEmails, email];
+  try {
+    await window.firebaseAPI.saveRoles({ editors: next });
+    input.value = "";
+    toast("✓ Editor added");
+  } catch (err) {
+    toast("Failed: " + (err.code || err.message), true);
+  }
+}
+
+async function removeEditor(email) {
+  if (!confirm(`Remove editor access for ${email}?`)) return;
+  const next = editorEmails.filter(e => String(e).toLowerCase() !== String(email).toLowerCase());
+  try {
+    await window.firebaseAPI.saveRoles({ editors: next });
+    toast("✓ Editor removed");
+  } catch (err) {
+    toast("Failed: " + (err.code || err.message), true);
+  }
 }
 function renderPeriodChips() {
   const team = getTeam();
@@ -1195,11 +1328,38 @@ function renderPlayerEditList() {
   `).join("");
 }
 
+function renderEmptyApp() {
+  document.getElementById("editorView").classList.add("hidden");
+  document.getElementById("dashboardView").classList.remove("hidden");
+  ["playerBtns","summaryCards","periodBtns","viewBtns","radarLegend","trendWrap","rankWrap"].forEach(id => {
+    document.getElementById(id).innerHTML = "";
+  });
+  let inner;
+  if (isEditor()) {
+    inner = `<h3>No data yet</h3>
+      <p>Get started by creating a team or loading sample data.</p>
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="primary-btn" onclick="addTeam()">+ Add Team</button>
+        <button class="secondary-btn" onclick="resetData()">Load Sample Data</button>
+      </div>`;
+  } else {
+    inner = `<h3>No data shared yet</h3>
+      <p>No teams have been added yet. Check back later, or ask an editor for access.</p>`;
+  }
+  document.getElementById("radarWrap").innerHTML = `<div class="empty-state">${inner}</div>`;
+}
+
 function renderAll() {
   ensureSelection();
+  if (!isEditor() && state.mode === "editor") state.mode = "dashboard";
+  renderUserRole();
   renderTeamTabs();
   renderModeToggle();
-  if (state.mode === "editor") renderEditor();
+  if (!state.teams || state.teams.length === 0) {
+    renderEmptyApp();
+    return;
+  }
+  if (state.mode === "editor" && isEditor()) renderEditor();
   else renderDashboard();
 }
 
@@ -1220,19 +1380,29 @@ window.appOnSyncError = (err) => {
   }
 };
 
-function applyRemoteState(data) {
+function applyRemoteState(data, meta) {
   if (!data || !data.teams) {
-    // First time: write sample data
-    state = makeSampleData();
-    ensureSelection();
-    resetVisiblePeriods();
+    // No shared data exists yet.
+    state = { teams: [], selectedTeamId: null, selectedPlayerId: null, mode: "dashboard" };
     renderAll();
-    window.firebaseAPI.saveDataNow(state);
     return;
   }
-  // Don't echo this back
-  suppressNextSave = true;
+  // Ignore echoes of our own writes (data identical to what we already show)
+  if (JSON.stringify(data.teams) === JSON.stringify(state.teams) &&
+      JSON.stringify(data.teams) !== JSON.stringify([])) {
+    return;
+  }
+  // Genuine remote change — preserve THIS user's local view selection
+  const prevTeam = state.selectedTeamId;
+  const prevPlayer = state.selectedPlayerId;
+  const prevMode = state.mode;
   state = data;
+  if (state.teams.find(t => t.id === prevTeam)) {
+    state.selectedTeamId = prevTeam;
+    const t = getTeam();
+    if (t && t.players.find(p => p.id === prevPlayer)) state.selectedPlayerId = prevPlayer;
+  }
+  state.mode = (prevMode === "editor" && isEditor()) ? "editor" : "dashboard";
   ensureSelection();
   resetVisiblePeriods();
   renderAll();
@@ -1255,9 +1425,14 @@ function showConfigNeeded() {
 
 function handleAuthChange(user) {
   if (!user) {
+    authedUser = null;
+    userRole = "viewer";
+    editorEmails = [];
+    rolesLoaded = false;
     showLogin();
     return;
   }
+  authedUser = user;
   // Update user bar
   const initials = (user.displayName || user.email || "?").split(/\s+/).map(s => s[0]).slice(0,2).join("").toUpperCase();
   const avatar = document.getElementById("userAvatar");
@@ -1272,8 +1447,20 @@ function handleAuthChange(user) {
 
   showApp();
   setSyncStatus("syncing");
+  computeRole();
+  renderUserRole();
+
+  // Subscribe to roles — updates editor list & re-computes this user's role
+  window.firebaseAPI.subscribeRoles((roles) => {
+    editorEmails = (roles && Array.isArray(roles.editors)) ? roles.editors : [];
+    rolesLoaded = true;
+    computeRole();
+    renderAll();
+  });
+
+  // Subscribe to shared team data
   window.firebaseAPI.subscribeData((data, meta) => {
-    applyRemoteState(data);
+    applyRemoteState(data, meta);
     setSyncStatus(meta && meta.fromCache ? "offline" : "synced");
   });
 }
@@ -1322,6 +1509,8 @@ window.setView = setView;
 window.exportData = exportData;
 window.importData = importData;
 window.resetData = resetData;
+window.addEditor = addEditor;
+window.removeEditor = removeEditor;
 
 // Boot
 let bootHandled = false;
