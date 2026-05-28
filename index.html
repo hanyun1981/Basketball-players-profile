@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Player Performance Portfolio</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #1e3a5f;
+    --navy-light: #2d5a8e;
+    --green: #10b981;
+    --red: #ef4444;
+    --gray: #6b7280;
+    --gray-light: #9ca3af;
+    --bg-warm: #fdf6ec;
+    --bg-warm2: #e8dcc8;
+    --court: #dcc9a3;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    background: linear-gradient(145deg, var(--bg-warm) 0%, var(--bg-warm2) 50%, #d4c4a8 100%);
+    min-height: 100vh; padding: 20px 12px;
+    color: #374151;
+  }
+  .container { max-width: 540px; margin: 0 auto; }
+  h1 { text-align: center; font-size: 20px; font-weight: 900; color: var(--navy); letter-spacing: 0.5px; margin-bottom: 2px; }
+  .subtitle { text-align: center; font-size: 11.5px; color: #8b95a5; margin-bottom: 14px; font-weight: 600; letter-spacing: 0.3px; }
+
+  input, button, select { font-family: inherit; }
+  button { cursor: pointer; border: none; background: transparent; }
+
+  /* ===== User bar ===== */
+  .user-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(255,255,255,0.7); border-radius: 10px;
+    padding: 6px 10px 6px 6px; margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .user-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .user-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--navy), var(--navy-light));
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; flex-shrink: 0;
+    background-size: cover; background-position: center;
+  }
+  .user-name { font-size: 12px; font-weight: 700; color: var(--navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sync-indicator {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10.5px; font-weight: 600; color: var(--gray);
+    padding: 3px 8px; border-radius: 12px;
+    background: rgba(0,0,0,0.04);
+  }
+  .sync-indicator.syncing { color: #f59e0b; background: #fef3c7; }
+  .sync-indicator.synced { color: var(--green); background: #ecfdf5; }
+  .sync-indicator.offline { color: var(--red); background: #fef2f2; }
+  .sync-indicator .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor;
+  }
+  .sync-indicator.syncing .dot { animation: pulse 1s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .signout-btn {
+    font-size: 11px; font-weight: 700; color: var(--gray);
+    padding: 4px 10px; border-radius: 8px;
+    background: transparent;
+  }
+  .signout-btn:hover { background: rgba(0,0,0,0.06); color: var(--red); }
+
+  /* ===== Login overlay ===== */
+  .login-overlay {
+    position: fixed; inset: 0;
+    background: linear-gradient(145deg, var(--bg-warm) 0%, var(--bg-warm2) 50%, #d4c4a8 100%);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .login-card {
+    background: rgba(255,255,255,0.9); border-radius: 20px;
+    padding: 32px 26px; max-width: 360px; width: 100%;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+    text-align: center;
+  }
+  .login-card .logo { font-size: 44px; margin-bottom: 8px; }
+  .login-card h2 {
+    font-size: 18px; font-weight: 900; color: var(--navy);
+    margin-bottom: 6px; letter-spacing: 0.3px;
+  }
+  .login-card p {
+    font-size: 12.5px; color: var(--gray); margin-bottom: 22px;
+    line-height: 1.55;
+  }
+  .google-btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 11px 22px; background: #fff;
+    border: 1.5px solid #d1d5db; border-radius: 10px;
+    font-size: 13.5px; font-weight: 700; color: #1f2937;
+    transition: all 0.15s; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+  .google-btn:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.1); transform: translateY(-1px); }
+  .google-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .login-foot { font-size: 10.5px; color: var(--gray-light); margin-top: 18px; line-height: 1.5; }
+  .login-error {
+    margin-top: 16px; padding: 10px 14px;
+    background: #fef2f2; border: 1px solid #fecaca;
+    border-radius: 8px; font-size: 11.5px; color: var(--red);
+    text-align: left; line-height: 1.5;
+  }
+  .login-error.hidden { display: none; }
+
+  /* ===== Config-needed screen ===== */
+  .config-needed {
+    background: #fef3c7; border: 1px solid #fbbf24;
+    border-radius: 12px; padding: 16px 18px;
+    color: #78350f; font-size: 12.5px; line-height: 1.6;
+  }
+  .config-needed h3 { font-size: 14px; font-weight: 800; margin-bottom: 8px; color: #92400e; }
+  .config-needed code {
+    background: #fff; padding: 1px 5px; border-radius: 4px;
+    font-family: monospace; font-size: 11.5px;
+  }
+  .config-needed ol { padding-left: 22px; margin-top: 8px; }
+  .config-needed ol li { margin-bottom: 4px; }
+
+  /* ===== Team tabs ===== */
+  .team-tabs {
+    display: flex; align-items: center; gap: 4px; margin-bottom: 10px;
+    overflow-x: auto; padding-bottom: 4px;
+  }
+  .team-tab {
+    padding: 7px 14px; border-radius: 10px 10px 0 0;
+    background: rgba(255,255,255,0.45); color: var(--navy);
+    font-size: 12px; font-weight: 700; white-space: nowrap;
+    transition: all 0.15s; border-bottom: 3px solid transparent;
+  }
+  .team-tab.active {
+    background: rgba(255,255,255,0.95); border-bottom-color: var(--navy);
+    box-shadow: 0 -2px 6px rgba(0,0,0,0.05);
+  }
+  .team-add {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: rgba(30,58,95,0.15); color: var(--navy);
+    font-size: 18px; font-weight: 700; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .team-add:hover { background: rgba(30,58,95,0.25); }
+
+  /* ===== Mode toggle ===== */
+  .mode-toggle {
+    display: flex; justify-content: center; margin-bottom: 14px;
+    background: rgba(255,255,255,0.6); border-radius: 12px; padding: 3px;
+    gap: 2px;
+  }
+  .mode-btn {
+    flex: 1; padding: 8px 14px; border-radius: 9px;
+    font-size: 12px; font-weight: 700; color: var(--gray);
+    transition: all 0.15s;
+  }
+  .mode-btn.active { background: var(--navy); color: #fff; box-shadow: 0 2px 6px rgba(30,58,95,0.2); }
+
+  /* Players, summary, periods, view, cards, radar, trends, ranking */
+  .players { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin-bottom: 12px; }
+  .player-btn {
+    padding: 5px 12px; border-radius: 18px;
+    font-size: 12px; font-weight: 400;
+    background: rgba(255,255,255,0.8); color: #374151;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08); transition: all 0.2s;
+  }
+  .player-btn.active {
+    font-weight: 700; background: linear-gradient(135deg, var(--navy), var(--navy-light));
+    color: #fff; box-shadow: 0 2px 8px rgba(30,58,95,0.25);
+  }
+  .player-btn .pos { font-size: 10px; opacity: 0.7; margin-left: 3px; }
+
+  .empty-state {
+    text-align: center; padding: 30px 20px; color: var(--gray);
+    background: rgba(255,255,255,0.6); border-radius: 14px;
+    font-size: 13px;
+  }
+  .empty-state h3 { font-size: 15px; color: var(--navy); margin-bottom: 6px; }
+
+  .summary { display: flex; gap: 8px; margin-bottom: 12px; justify-content: center; flex-wrap: wrap; }
+  .stat-card {
+    background: rgba(255,255,255,0.8); border-radius: 10px; padding: 8px 14px;
+    text-align: center; min-width: 90px;
+  }
+  .stat-card .label { font-size: 10px; color: #8b95a5; }
+  .stat-card .value { font-size: 18px; font-weight: 900; }
+  .stat-card .value.growth { color: var(--green); }
+  .stat-card .value.growth.neg { color: var(--red); }
+  .stat-card .value.navy { color: var(--navy); }
+  .stat-card .value.best { font-size: 13px; color: var(--navy); }
+
+  .periods { display: flex; gap: 6px; justify-content: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .period-btn { padding: 4px 10px; font-size: 10px; font-weight: 600; border-radius: 14px; }
+  .period-btn.off { opacity: 0.4; }
+
+  .view-toggle { display: flex; justify-content: center; margin-bottom: 12px; }
+  .view-group { display: inline-flex; background: rgba(255,255,255,0.6); border-radius: 20px; padding: 3px; }
+  .view-btn { padding: 5px 14px; border-radius: 16px; font-size: 11px; font-weight: 400; color: var(--gray); transition: all 0.15s; }
+  .view-btn.active { font-weight: 700; background: var(--navy); color: #fff; }
+
+  .card {
+    background: rgba(255,255,255,0.7); border-radius: 16px;
+    padding: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+    backdrop-filter: blur(10px); margin-bottom: 14px;
+  }
+  .card svg { width: 100%; display: block; }
+  .radar-card { padding: 0; overflow: hidden; background: transparent; }
+  .radar-card svg { border-radius: 16px; }
+
+  .radar-legend {
+    display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+    background: rgba(255,255,255,0.85); border-radius: 12px;
+    padding: 8px 10px; margin-top: -10px; margin-bottom: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06); font-size: 10.5px;
+    position: relative; z-index: 1;
+  }
+  .legend-item { display: inline-flex; align-items: center; gap: 5px; color: #374151; font-weight: 600; }
+  .legend-swatch { display: inline-block; width: 22px; height: 10px; border-radius: 2px; }
+
+  .trend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .trend-card { background: #fff; border-radius: 10px; padding: 10px 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .trend-header { display: flex; justify-content: space-between; align-items: center; padding: 0 4px; margin-bottom: 2px; }
+  .trend-label { font-size: 10.5px; font-weight: 700; color: #374151; }
+  .trend-diff { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 8px; }
+  .trend-diff.up { color: var(--green); background: #ecfdf5; }
+  .trend-diff.down { color: var(--red); background: #fef2f2; }
+  .trend-diff.flat { color: var(--gray); background: #f3f4f6; }
+
+  .rank-title { font-size: 13px; font-weight: 700; color: var(--navy); margin-bottom: 8px; }
+  .rank-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; margin-bottom: 2px; border: 1px solid transparent; }
+  .rank-row.highlight { background: #eff6ff; border-color: #93c5fd; }
+  .rank-row:nth-child(even):not(.highlight) { background: #f9fafb; }
+  .rank-badge { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+  .rank-badge.gold { background: #fbbf24; color: #fff; }
+  .rank-badge.silver { background: #9ca3af; color: #fff; }
+  .rank-badge.bronze { background: #b45309; color: #fff; }
+  .rank-badge.normal { background: #e5e7eb; color: var(--gray); }
+  .rank-name { font-size: 12px; font-weight: 600; color: #374151; flex: 1; }
+  .rank-name .pos { font-size: 10px; color: var(--gray-light); }
+  .rank-growth { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 8px; }
+  .rank-growth.up { color: var(--green); background: #ecfdf5; }
+  .rank-growth.down { color: var(--red); background: #fef2f2; }
+
+  /* Editor */
+  .editor-section { background: rgba(255,255,255,0.85); border-radius: 14px; padding: 14px; margin-bottom: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+  .editor-section h3 { font-size: 13px; font-weight: 800; color: var(--navy); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .field-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .field-row label { font-size: 12px; font-weight: 600; color: var(--gray); min-width: 75px; }
+  .text-input {
+    flex: 1; min-width: 100px; padding: 6px 10px;
+    border: 1.5px solid #d1d5db; border-radius: 8px;
+    font-size: 13px; background: #fff; color: #1f2937;
+    outline: none; transition: border-color 0.15s;
+  }
+  .text-input:focus { border-color: var(--navy); }
+  .text-input.small { font-size: 11.5px; padding: 5px 8px; }
+
+  .danger-btn, .primary-btn, .secondary-btn {
+    padding: 6px 12px; border-radius: 8px; font-size: 11.5px; font-weight: 700;
+    transition: all 0.15s;
+  }
+  .primary-btn { background: var(--navy); color: #fff; }
+  .primary-btn:hover { background: var(--navy-light); }
+  .secondary-btn { background: rgba(30,58,95,0.1); color: var(--navy); }
+  .secondary-btn:hover { background: rgba(30,58,95,0.18); }
+  .danger-btn { background: #fee2e2; color: var(--red); }
+  .danger-btn:hover { background: #fecaca; }
+
+  .period-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .period-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 4px 4px 10px; background: #eff6ff; color: var(--navy);
+    border-radius: 14px; font-size: 11.5px; font-weight: 700;
+  }
+  .period-chip input {
+    border: none; background: transparent; font-weight: 700;
+    font-size: 11.5px; color: var(--navy); width: 80px; outline: none;
+  }
+  .period-chip .x {
+    width: 18px; height: 18px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(30,58,95,0.15); color: var(--navy);
+    font-size: 13px; line-height: 1;
+  }
+  .period-chip .x:hover { background: var(--red); color: #fff; }
+
+  .player-edit-card { background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); border: 1px solid #f3f4f6; }
+  .player-edit-header { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px dashed #e5e7eb; }
+  .player-edit-header .name-in { flex: 1; font-weight: 700; }
+  .player-edit-header .pos-in { width: 56px; text-align: center; font-weight: 700; }
+  .player-edit-header .delete { width: 28px; height: 28px; border-radius: 6px; background: #fee2e2; color: var(--red); font-size: 14px; display: flex; align-items: center; justify-content: center; }
+  .score-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .score-table th { padding: 5px 4px; background: #f9fafb; color: var(--gray); font-weight: 700; font-size: 10px; text-align: center; border-bottom: 1.5px solid #e5e7eb; }
+  .score-table th:first-child { text-align: left; padding-left: 6px; }
+  .score-table td { padding: 3px 2px; }
+  .score-table td:first-child { font-size: 11px; font-weight: 600; color: #4b5563; padding-left: 6px; white-space: nowrap; }
+  .score-table .metric-sub { display: block; font-size: 9px; color: var(--gray-light); font-weight: 500; }
+  .score-input {
+    width: 100%; padding: 4px 2px; border: 1px solid #e5e7eb;
+    border-radius: 5px; text-align: center; font-size: 11.5px;
+    font-weight: 700; color: var(--navy); background: #fff;
+    outline: none; font-variant-numeric: tabular-nums;
+  }
+  .score-input:focus { border-color: var(--navy); background: #eff6ff; }
+  .score-input.bad { color: var(--red); border-color: #fecaca; }
+
+  .data-tools { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .data-tools button { flex: 1; min-width: 110px; }
+  .hidden { display: none !important; }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--navy); color: #fff; padding: 8px 16px;
+    border-radius: 8px; font-size: 12px; font-weight: 700;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none;
+    z-index: 1100;
+  }
+  .toast.show { opacity: 1; }
+  .toast.error { background: var(--red); }
+</style>
+</head>
+<body>
+
+<!-- ============ Login overlay ============ -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <div class="logo">🏀</div>
+    <h2>Player Performance Portfolio</h2>
+    <p>Sign in to access your teams.<br>Your data is stored privately in your account.</p>
+    <button class="google-btn" id="googleSignInBtn">
+      <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+        <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+        <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+        <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+        <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+      </svg>
+      Sign in with Google
+    </button>
+    <div class="login-foot">By signing in, your team data will be saved to your private Firebase account.</div>
+    <div class="login-error hidden" id="loginError"></div>
+  </div>
+</div>
+
+<!-- ============ Config-needed overlay (shown if Firebase not configured) ============ -->
+<div class="login-overlay hidden" id="configOverlay">
+  <div class="login-card">
+    <div class="logo">⚙️</div>
+    <h2>Setup Required</h2>
+    <div class="config-needed" style="text-align:left">
+      <h3>Firebase not configured</h3>
+      <p>To use cloud storage, edit this HTML file and replace the <code>FIREBASE_CONFIG</code> block near the bottom of the file with your own project's config.</p>
+      <ol>
+        <li>Create a project at <code>console.firebase.google.com</code></li>
+        <li>Enable <b>Firestore Database</b> and <b>Authentication → Google sign-in</b></li>
+        <li>Copy the web app config into this file</li>
+        <li>See <code>README.md</code> for full step-by-step instructions</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Main app ============ -->
+<div class="container" id="appContainer" style="display:none">
+  <div class="user-bar">
+    <div class="user-info">
+      <div class="user-avatar" id="userAvatar">?</div>
+      <span class="user-name" id="userName">—</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span class="sync-indicator" id="syncIndicator"><span class="dot"></span><span id="syncText">…</span></span>
+      <button class="signout-btn" id="signOutBtn">Sign out</button>
+    </div>
+  </div>
+
+  <h1>🏀 Player Performance Portfolio</h1>
+  <p class="subtitle">Multi-Period Tracking · Radar + Trends</p>
+
+  <div class="team-tabs" id="teamTabs"></div>
+  <div class="mode-toggle" id="modeToggle"></div>
+
+  <div id="dashboardView">
+    <div class="players" id="playerBtns"></div>
+    <div class="summary" id="summaryCards"></div>
+    <div class="periods" id="periodBtns"></div>
+    <div class="view-toggle"><div class="view-group" id="viewBtns"></div></div>
+    <div id="radarWrap"></div>
+    <div id="radarLegend"></div>
+    <div id="trendWrap"></div>
+    <div class="card" id="rankWrap"></div>
+  </div>
+
+  <div id="editorView" class="hidden">
+    <div class="editor-section">
+      <h3>⚙️ Team Settings</h3>
+      <div class="field-row">
+        <label>Team name</label>
+        <input type="text" class="text-input" id="teamNameInput">
+      </div>
+      <div class="field-row" style="justify-content:flex-end">
+        <button class="danger-btn" onclick="deleteTeam()">🗑️ Delete Team</button>
+      </div>
+    </div>
+
+    <div class="editor-section">
+      <h3>📅 Test Periods</h3>
+      <div class="period-chips" id="periodChips"></div>
+      <div style="margin-top:8px"><button class="secondary-btn" onclick="addPeriod()">+ Add Period</button></div>
+    </div>
+
+    <div class="editor-section">
+      <h3>👤 Players (<span id="playerCount">0</span>)</h3>
+      <div id="playerEditList"></div>
+      <div style="margin-top:8px"><button class="secondary-btn" onclick="addPlayer()">+ Add Player</button></div>
+    </div>
+
+    <div class="editor-section">
+      <h3>💾 Backup & Restore</h3>
+      <p style="font-size:11.5px;color:var(--gray);margin-bottom:8px;line-height:1.5">
+        Your data is auto-saved to Firebase. Export creates a local JSON backup; Import replaces all data with a backup file.
+      </p>
+      <div class="data-tools">
+        <button class="primary-btn" onclick="exportData()">📥 Export JSON</button>
+        <button class="secondary-btn" onclick="document.getElementById('importFile').click()">📤 Import JSON</button>
+        <button class="danger-btn" onclick="resetData()">🔄 Reset to Sample</button>
+      </div>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ============ Firebase setup (module) ============ -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getFirestore, doc, setDoc, onSnapshot, getDoc, initializeFirestore, persistentLocalCache, persistentMultipleTabManager }
+  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+// =====================================================
+// 👇 REPLACE THIS WITH YOUR OWN FIREBASE CONFIG
+//   (Firebase Console → Project Settings → Your apps → SDK config → CDN)
+// =====================================================
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCSnsG3tMzrMsQCQ_psNKYHM4IWrTuU06E",
+  authDomain: "player-tracking-data.firebaseapp.com",
+  projectId: "player-tracking-data",
+  storageBucket: "player-tracking-data.firebasestorage.app",
+  messagingSenderId: "684475318183",
+  appId: "1:684475318183:web:de8b9ad4adec63f2f2c082",
+  measurementId: "G-M5Q23HY02S"
+};
+// =====================================================
+
+let app, auth, db;
+let currentUser = null;
+let saveTimer = null;
+let unsubscribeSnapshot = null;
+
+function isConfigured() {
+  return FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY_HERE";
+}
+
+window.firebaseAPI = {
+  isConfigured,
+
+  async init() {
+    app = initializeApp(FIREBASE_CONFIG);
+    auth = getAuth(app);
+    // Firestore with offline persistence (multi-tab)
+    try {
+      db = initializeFirestore(app, {
+        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+      });
+    } catch (e) {
+      db = getFirestore(app);
+      console.warn("Persistent cache unavailable, using memory cache:", e);
+    }
+  },
+
+  onAuthChange(callback) {
+    onAuthStateChanged(auth, (user) => {
+      currentUser = user;
+      callback(user);
+    });
+  },
+
+  async signIn() {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (err) {
+      throw err;
+    }
+  },
+
+  async signOutUser() {
+    if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+    await signOut(auth);
+  },
+
+  subscribeData(callback) {
+    if (!currentUser) return;
+    if (unsubscribeSnapshot) unsubscribeSnapshot();
+    const ref = doc(db, "users", currentUser.uid);
+    unsubscribeSnapshot = onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        callback(snap.data(), { fromCache: snap.metadata.fromCache });
+      } else {
+        callback(null, { fromCache: snap.metadata.fromCache });
+      }
+    }, (err) => {
+      console.error("Snapshot error:", err);
+      window.appOnSyncError && window.appOnSyncError(err);
+    });
+  },
+
+  // Debounced write (800ms after last edit)
+  saveData(stateObj) {
+    if (!currentUser) return;
+    if (saveTimer) clearTimeout(saveTimer);
+    window.appOnSyncStatus && window.appOnSyncStatus("syncing");
+    saveTimer = setTimeout(async () => {
+      try {
+        const ref = doc(db, "users", currentUser.uid);
+        await setDoc(ref, stateObj);
+        window.appOnSyncStatus && window.appOnSyncStatus("synced");
+      } catch (err) {
+        console.error("Save failed:", err);
+        window.appOnSyncStatus && window.appOnSyncStatus("offline");
+      }
+    }, 800);
+  },
+
+  // Immediate (non-debounced) save — used for big state changes
+  async saveDataNow(stateObj) {
+    if (!currentUser) return;
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    try {
+      window.appOnSyncStatus && window.appOnSyncStatus("syncing");
+      const ref = doc(db, "users", currentUser.uid);
+      await setDoc(ref, stateObj);
+      window.appOnSyncStatus && window.appOnSyncStatus("synced");
+    } catch (err) {
+      console.error("Save failed:", err);
+      window.appOnSyncStatus && window.appOnSyncStatus("offline");
+    }
+  },
+};
+
+// Auto-initialize
+if (isConfigured()) {
+  window.firebaseAPI.init();
+  window.dispatchEvent(new Event("firebase-ready"));
+} else {
+  window.dispatchEvent(new Event("firebase-not-configured"));
+}
+</script>
+
+<!-- ============ Main app logic ============ -->
+<script>
+const ICON = "#1e3a5f";
+const ICONS = {
+  jump: `<circle cx="10" cy="3" r="2.2" fill="${ICON}"/>
+    <line x1="10" y1="5.2" x2="10" y2="12" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>
+    <line x1="10" y1="6" x2="6.5" y2="0" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>
+    <line x1="10" y1="6" x2="13.5" y2="0" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>
+    <line x1="10" y1="12" x2="7" y2="18.5" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>
+    <line x1="10" y1="12" x2="13" y2="18.5" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>`,
+  agility: `<circle cx="10" cy="3" r="2.2" fill="${ICON}"/>
+    <line x1="10" y1="5.2" x2="11" y2="11.5" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>
+    <line x1="10.5" y1="6.5" x2="5.5" y2="9.5" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>
+    <line x1="10.5" y1="6.5" x2="15.5" y2="3" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>
+    <line x1="11" y1="11.5" x2="5.5" y2="18" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>
+    <line x1="11" y1="11.5" x2="16.5" y2="16" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>`,
+  shoot: `<circle cx="10" cy="10" r="7" fill="none" stroke="${ICON}" stroke-width="1.7"/>
+    <line x1="3" y1="10" x2="17" y2="10" stroke="${ICON}" stroke-width="1.3"/>
+    <line x1="10" y1="3" x2="10" y2="17" stroke="${ICON}" stroke-width="1.3"/>
+    <path d="M 4.5 5.2 Q 10 10 4.5 14.8" stroke="${ICON}" stroke-width="1.3" fill="none"/>
+    <path d="M 15.5 5.2 Q 10 10 15.5 14.8" stroke="${ICON}" stroke-width="1.3" fill="none"/>`,
+  dribble: `<circle cx="8" cy="3" r="2.2" fill="${ICON}"/>
+    <line x1="8" y1="5.2" x2="8" y2="13" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>
+    <line x1="8" y1="7" x2="13.5" y2="10.5" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>
+    <line x1="8" y1="7" x2="3.5" y2="10" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>
+    <line x1="8" y1="13" x2="5.5" y2="18.5" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>
+    <line x1="8" y1="13" x2="10.5" y2="18.5" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>
+    <circle cx="15" cy="14" r="2.3" fill="none" stroke="${ICON}" stroke-width="1.4"/>
+    <line x1="13.5" y1="12.7" x2="16.5" y2="15.3" stroke="${ICON}" stroke-width="1"/>`,
+  cardio: `<circle cx="6.5" cy="4" r="2.2" fill="${ICON}"/>
+    <line x1="6.5" y1="6.2" x2="11.5" y2="11.5" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>
+    <line x1="7.5" y1="7.5" x2="2" y2="10" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>
+    <line x1="9" y1="8.5" x2="14.5" y2="5.5" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>
+    <line x1="11.5" y1="11.5" x2="6.5" y2="18.5" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>
+    <line x1="11.5" y1="11.5" x2="18.5" y2="14.5" stroke="${ICON}" stroke-width="1.7" stroke-linecap="round"/>`,
+  pass: `<circle cx="12" cy="7" r="4.8" fill="none" stroke="${ICON}" stroke-width="1.6"/>
+    <line x1="12" y1="2.2" x2="12" y2="11.8" stroke="${ICON}" stroke-width="1.1"/>
+    <line x1="7.2" y1="7" x2="16.8" y2="7" stroke="${ICON}" stroke-width="1.1"/>
+    <path d="M 8.5 4.2 Q 12 7 8.5 9.8" stroke="${ICON}" stroke-width="1.1" fill="none"/>
+    <path d="M 15.5 4.2 Q 12 7 15.5 9.8" stroke="${ICON}" stroke-width="1.1" fill="none"/>
+    <path d="M 4 17.5 Q 6 13.5 11 13.5 L 15 13.5 L 15 16 L 13 16 L 13 14.2"
+      stroke="${ICON}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="6.5" y1="17" x2="6.5" y2="19" stroke="${ICON}" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="9" y1="17" x2="9" y2="19" stroke="${ICON}" stroke-width="1.5" stroke-linecap="round"/>`,
+};
+
+const METRICS = [
+  { key:"jump",     label:"Vertical Jump",   sub:"Power",        emoji:"🤸", svg:ICONS.jump,    iconLeft:true  },
+  { key:"agility",  label:"4-Corner Drill",  sub:"Agility",      emoji:"⚡", svg:ICONS.agility, iconLeft:false },
+  { key:"shooting", label:"Spot Shooting",   sub:"Accuracy",     emoji:"🎯", svg:ICONS.shoot,   iconLeft:false },
+  { key:"dribble",  label:"Obstacle Dribble",sub:"Control",      emoji:"🏀", svg:ICONS.dribble, iconLeft:false },
+  { key:"cardio",   label:"15-Lap Shuttle",  sub:"Stamina",      emoji:"🏃", svg:ICONS.cardio,  iconLeft:true  },
+  { key:"passing",  label:"Passing Test",    sub:"Coordination", emoji:"🙌", svg:ICONS.pass,    iconLeft:true  },
+];
+const PERIOD_COLORS = ["#d1d5db","#93c5fd","#f59e0b","#10b981","#1e3a5f","#7c3aed","#ec4899","#0891b2"];
+
+function makeSampleData() {
+  return {
+    teams: [
+      { id:"t1", name:"Varsity",
+        periods:["2024 H2","2025 H1","2025 H2","2026 H1"],
+        players:[
+          { id:"p1", name:"John Smith", position:"SG", scores:[
+            {jump:4.0,agility:4.2,shooting:3.5,dribble:3.8,cardio:4.0,passing:4.5},
+            {jump:5.6,agility:5.5,shooting:4.6,dribble:4.8,cardio:5.7,passing:6.3},
+            {jump:6.7,agility:6.2,shooting:5.7,dribble:5.5,cardio:6.5,passing:7.5},
+            {jump:7.4,agility:7.0,shooting:6.5,dribble:6.2,cardio:7.2,passing:8.0}]},
+          { id:"p2", name:"Mike Davis", position:"PF", scores:[
+            {jump:3.2,agility:3.5,shooting:2.8,dribble:3.0,cardio:3.2,passing:3.5},
+            {jump:4.0,agility:4.8,shooting:3.5,dribble:3.9,cardio:4.3,passing:5.0},
+            {jump:4.9,agility:5.4,shooting:4.5,dribble:4.7,cardio:5.0,passing:6.3},
+            {jump:5.8,agility:6.0,shooting:5.2,dribble:5.5,cardio:5.8,passing:7.0}]},
+          { id:"p3", name:"Chris Lee", position:"PG", scores:[
+            {jump:6.0,agility:5.8,shooting:5.0,dribble:5.5,cardio:6.2,passing:7.5},
+            {jump:7.2,agility:7.0,shooting:6.2,dribble:6.2,cardio:7.5,passing:8.8},
+            {jump:7.8,agility:7.5,shooting:6.9,dribble:6.8,cardio:8.0,passing:8.8},
+            {jump:8.2,agility:8.0,shooting:7.5,dribble:7.2,cardio:8.5,passing:9.2}]},
+        ]
+      }
+    ],
+    selectedTeamId: "t1",
+    selectedPlayerId: "p1",
+    mode: "dashboard",
+  };
+}
+
+let state = makeSampleData();
+let visiblePeriods = new Set();
+let currentView = "radar";
+let suppressNextSave = false; // when applying remote update, don't echo back
+
+function getTeam() { return state.teams.find(t => t.id === state.selectedTeamId) || state.teams[0]; }
+function getPlayer() { const team = getTeam(); return team ? team.players.find(p => p.id === state.selectedPlayerId) || team.players[0] : null; }
+
+function ensureSelection() {
+  if (!state.teams || state.teams.length === 0) { state = makeSampleData(); return; }
+  if (!state.teams.find(t => t.id === state.selectedTeamId)) {
+    state.selectedTeamId = state.teams[0]?.id;
+  }
+  const team = getTeam();
+  if (team && !team.players.find(p => p.id === state.selectedPlayerId)) {
+    state.selectedPlayerId = team.players[0]?.id || null;
+  }
+}
+
+function resetVisiblePeriods() {
+  const team = getTeam();
+  visiblePeriods = new Set([-1]);
+  if (team) team.periods.forEach((_, i) => visiblePeriods.add(i));
+}
+
+function persist() {
+  if (suppressNextSave) { suppressNextSave = false; return; }
+  if (window.firebaseAPI && window.firebaseAPI.isConfigured()) {
+    window.firebaseAPI.saveData(state);
+  }
+}
+
+// =====================================================
+// Mutations
+// =====================================================
+function addTeam() {
+  const name = prompt("Team name:", `Team ${state.teams.length + 1}`);
+  if (!name || !name.trim()) return;
+  const id = "t" + Date.now();
+  state.teams.push({ id, name: name.trim(), periods: ["Test 1"], players: [] });
+  state.selectedTeamId = id;
+  state.selectedPlayerId = null;
+  state.mode = "editor";
+  resetVisiblePeriods();
+  renderAll();
+  persist();
+}
+
+function deleteTeam() {
+  if (state.teams.length <= 1) { toast("Need at least one team."); return; }
+  const team = getTeam();
+  if (!confirm(`Delete "${team.name}" and all its data?`)) return;
+  state.teams = state.teams.filter(t => t.id !== team.id);
+  state.selectedTeamId = state.teams[0].id;
+  state.selectedPlayerId = state.teams[0].players[0]?.id || null;
+  ensureSelection();
+  resetVisiblePeriods();
+  renderAll();
+  persist();
+}
+
+function selectTeam(id) {
+  state.selectedTeamId = id;
+  const team = getTeam();
+  state.selectedPlayerId = team.players[0]?.id || null;
+  resetVisiblePeriods();
+  renderAll();
+  persist();
+}
+
+function addPlayer() {
+  const team = getTeam();
+  const name = prompt("Player name:", "New Player");
+  if (!name || !name.trim()) return;
+  const id = "p" + Date.now();
+  const scores = team.periods.map(() => ({ jump:5, agility:5, shooting:5, dribble:5, cardio:5, passing:5 }));
+  team.players.push({ id, name: name.trim(), position: "", scores });
+  if (!state.selectedPlayerId) state.selectedPlayerId = id;
+  renderAll();
+  persist();
+}
+
+function deletePlayer(pid) {
+  const team = getTeam();
+  const p = team.players.find(p => p.id === pid);
+  if (!p) return;
+  if (!confirm(`Delete "${p.name}"?`)) return;
+  team.players = team.players.filter(p => p.id !== pid);
+  if (state.selectedPlayerId === pid) state.selectedPlayerId = team.players[0]?.id || null;
+  renderAll();
+  persist();
+}
+
+function addPeriod() {
+  const team = getTeam();
+  const suggestion = `Test ${team.periods.length + 1}`;
+  const name = prompt("New period name (e.g. '2026 H2'):", suggestion);
+  if (!name || !name.trim()) return;
+  team.periods.push(name.trim());
+  team.players.forEach(p => p.scores.push({jump:5, agility:5, shooting:5, dribble:5, cardio:5, passing:5}));
+  resetVisiblePeriods();
+  renderAll();
+  persist();
+}
+
+function deletePeriod(idx) {
+  const team = getTeam();
+  if (team.periods.length <= 1) { toast("Need at least one period."); return; }
+  if (!confirm(`Delete period "${team.periods[idx]}"?`)) return;
+  team.periods.splice(idx, 1);
+  team.players.forEach(p => p.scores.splice(idx, 1));
+  resetVisiblePeriods();
+  renderAll();
+  persist();
+}
+
+function onTeamNameChange(e) {
+  const team = getTeam();
+  team.name = e.target.value;
+  renderTeamTabs();
+  persist();
+}
+function onPeriodNameChange(idx, value) {
+  const team = getTeam();
+  team.periods[idx] = value;
+  persist();
+}
+function onPlayerFieldChange(pid, field, value) {
+  const team = getTeam();
+  const p = team.players.find(p => p.id === pid);
+  if (!p) return;
+  p[field] = value;
+  persist();
+}
+function onScoreChange(pid, periodIdx, key, value, inputEl) {
+  const v = parseFloat(value);
+  if (isNaN(v) || v < 0 || v > 10) { inputEl.classList.add("bad"); return; }
+  inputEl.classList.remove("bad");
+  const team = getTeam();
+  const p = team.players.find(p => p.id === pid);
+  if (!p) return;
+  p.scores[periodIdx][key] = v;
+  persist();
+}
+
+// Backup
+function exportData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const ts = new Date().toISOString().slice(0,10);
+  a.href = url; a.download = `player-portfolio-${ts}.json`;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  toast("✓ Exported");
+}
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (!parsed.teams || !Array.isArray(parsed.teams)) throw new Error("Invalid format");
+      if (!confirm("Import will replace your current data. Continue?")) return;
+      state = parsed;
+      ensureSelection();
+      resetVisiblePeriods();
+      renderAll();
+      if (window.firebaseAPI && window.firebaseAPI.isConfigured()) {
+        window.firebaseAPI.saveDataNow(state);
+      }
+      toast("✓ Imported");
+    } catch (err) {
+      alert("Import failed: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = "";
+}
+function resetData() {
+  if (!confirm("Reset all data back to the sample (your edits will be lost)?")) return;
+  state = makeSampleData();
+  resetVisiblePeriods();
+  renderAll();
+  if (window.firebaseAPI && window.firebaseAPI.isConfigured()) {
+    window.firebaseAPI.saveDataNow(state);
+  }
+  toast("✓ Reset to sample data");
+}
+
+// Toast
+let toastTimer;
+function toast(msg, isError) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.toggle("error", !!isError);
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+}
+
+// Calculations
+function calcTeamAvg(team) {
+  if (!team.players.length) return null;
+  const out = {};
+  METRICS.forEach(m => {
+    let sum = 0, n = 0;
+    team.players.forEach(p => {
+      if (p.scores.length > 0) { sum += p.scores[p.scores.length-1][m.key]; n++; }
+    });
+    out[m.key] = n > 0 ? +(sum / n).toFixed(2) : 0;
+  });
+  return out;
+}
+function polar(cx, cy, r, deg) {
+  const rad = (deg - 90) * Math.PI / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+function makePolygon(data, cx, cy, maxR) {
+  const step = 360 / METRICS.length;
+  return METRICS.map((m,i) => {
+    const r = ((data[m.key] || 0) / 10) * maxR;
+    const p = polar(cx, cy, r, i*step);
+    return `${p.x},${p.y}`;
+  }).join(" ");
+}
+
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+// Rendering
+function renderTeamTabs() {
+  const html = state.teams.map(t => `
+    <button class="team-tab ${t.id === state.selectedTeamId ? 'active' : ''}" onclick="selectTeam('${t.id}')">${escapeHTML(t.name)}</button>
+  `).join("") + `<button class="team-add" onclick="addTeam()">+</button>`;
+  document.getElementById("teamTabs").innerHTML = html;
+}
+function renderModeToggle() {
+  document.getElementById("modeToggle").innerHTML = `
+    <button class="mode-btn ${state.mode==='dashboard'?'active':''}" onclick="setMode('dashboard')">📊 Dashboard</button>
+    <button class="mode-btn ${state.mode==='editor'?'active':''}" onclick="setMode('editor')">✏️ Edit Data</button>
+  `;
+}
+function setMode(m) { state.mode = m; renderAll(); persist(); }
+
+function renderPlayerBtns() {
+  const team = getTeam();
+  if (!team.players.length) { document.getElementById("playerBtns").innerHTML = ""; return; }
+  document.getElementById("playerBtns").innerHTML = team.players.map(p =>
+    `<button class="player-btn${p.id===state.selectedPlayerId?" active":""}" onclick="selectPlayer('${p.id}')">${escapeHTML(p.name)}${p.position?`<span class="pos">${escapeHTML(p.position)}</span>`:""}</button>`
+  ).join("");
+}
+function selectPlayer(id) { state.selectedPlayerId = id; renderDashboard(); persist(); }
+
+function renderSummary() {
+  const player = getPlayer();
+  if (!player || player.scores.length === 0) { document.getElementById("summaryCards").innerHTML = ""; return; }
+  const first = player.scores[0], last = player.scores[player.scores.length-1];
+  const totalGrowth = METRICS.reduce((s,m) => s + (last[m.key]-first[m.key]), 0);
+  const best = METRICS.reduce((b,m) => last[m.key] > last[b.key] ? m : b, METRICS[0]);
+  const gCls = totalGrowth >= 0 ? "growth" : "growth neg";
+  const gSign = totalGrowth >= 0 ? "+" : "";
+  document.getElementById("summaryCards").innerHTML = `
+    <div class="stat-card"><div class="label">Total Growth</div><div class="value ${gCls}">${gSign}${totalGrowth.toFixed(1)}</div></div>
+    <div class="stat-card"><div class="label">Periods</div><div class="value navy">${player.scores.length}</div></div>
+    <div class="stat-card"><div class="label">Top Skill</div><div class="value best">${best.emoji} ${best.label}</div></div>`;
+}
+
+function renderPeriodBtns() {
+  const team = getTeam();
+  let html = `<button class="period-btn ${visiblePeriods.has(-1)?"":"off"}" style="border:1.5px solid #9ca3af;color:#6b7280;${visiblePeriods.has(-1)?"background:#f3f4f6":""}" onclick="togglePeriod(-1)">■ Team Avg</button>`;
+  team.periods.forEach((p, i) => {
+    const c = PERIOD_COLORS[Math.min(i, PERIOD_COLORS.length-1)];
+    const on = visiblePeriods.has(i);
+    const isLast = i === team.periods.length-1;
+    const prefix = isLast ? "●─" : "- -";
+    html += `<button class="period-btn ${on?"":"off"}" style="border:1.5px solid ${c};color:${c};${on?`background:${c}18`:""}" onclick="togglePeriod(${i})">${prefix} ${escapeHTML(p)}</button>`;
+  });
+  document.getElementById("periodBtns").innerHTML = html;
+}
+function togglePeriod(idx) {
+  visiblePeriods.has(idx) ? visiblePeriods.delete(idx) : visiblePeriods.add(idx);
+  renderPeriodBtns(); renderRadar();
+}
+function renderViewBtns() {
+  const views = [{key:"radar",label:"🕸️ Radar"},{key:"trend",label:"📈 Trends"},{key:"both",label:"🔄 Both"}];
+  document.getElementById("viewBtns").innerHTML = views.map(v =>
+    `<button class="view-btn${v.key===currentView?" active":""}" onclick="setView('${v.key}')">${v.label}</button>`
+  ).join("");
+}
+function setView(v) { currentView = v; renderViewBtns(); renderRadar(); renderTrends(); }
+
+function renderRadar() {
+  const wrap = document.getElementById("radarWrap");
+  const legend = document.getElementById("radarLegend");
+  if (currentView !== "radar" && currentView !== "both") { wrap.innerHTML = ""; legend.innerHTML = ""; return; }
+  const team = getTeam();
+  const player = getPlayer();
+  if (!player || player.scores.length === 0) {
+    wrap.innerHTML = `<div class="empty-state"><h3>No data yet</h3>Add players and test scores in the Editor.</div>`;
+    legend.innerHTML = "";
+    return;
+  }
+  const teamAvg = calcTeamAvg(team);
+  const vb = 500, cx = 250, cy = 245, maxR = 135;
+  const step = 360 / METRICS.length;
+
+  let svg = `<div class="card radar-card"><svg viewBox="0 0 ${vb} ${vb}">`;
+  svg += `<defs>
+    <radialGradient id="court" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#f0dcb0"/><stop offset="55%" stop-color="#e0c993"/><stop offset="100%" stop-color="#bfa472"/>
+    </radialGradient>
+    <linearGradient id="hexLight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#eef1f5"/>
+    </linearGradient>
+    <linearGradient id="hexDark" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#e6eaf0"/><stop offset="100%" stop-color="#ccd2dc"/>
+    </linearGradient>
+    <filter id="hexShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-opacity="0.18"/>
+    </filter>
+  </defs>`;
+  svg += `<rect x="0" y="0" width="${vb}" height="${vb}" fill="url(#court)"/>`;
+  for (let i = 0; i < 14; i++) {
+    const x = (i + 0.5) * (vb / 14);
+    svg += `<line x1="${x}" y1="0" x2="${x}" y2="${vb}" stroke="#a8895a" stroke-width="${i%2===0?0.6:0.3}" opacity="${i%2===0?0.22:0.12}"/>`;
+  }
+  const lc = "#7a5d36"; const lo = 0.22;
+  svg += `<rect x="0" y="${cy-80}" width="65" height="160" fill="none" stroke="${lc}" stroke-width="1.5" opacity="${lo}"/>`;
+  svg += `<circle cx="65" cy="${cy}" r="36" fill="none" stroke="${lc}" stroke-width="1.5" opacity="${lo}"/>`;
+  svg += `<circle cx="20" cy="${cy}" r="6" fill="none" stroke="${lc}" stroke-width="1.5" opacity="${lo}"/>`;
+  svg += `<rect x="${vb-65}" y="${cy-80}" width="65" height="160" fill="none" stroke="${lc}" stroke-width="1.5" opacity="${lo}"/>`;
+  svg += `<circle cx="${vb-65}" cy="${cy}" r="36" fill="none" stroke="${lc}" stroke-width="1.5" opacity="${lo}"/>`;
+  svg += `<circle cx="${vb-20}" cy="${cy}" r="6" fill="none" stroke="${lc}" stroke-width="1.5" opacity="${lo}"/>`;
+  svg += `<path d="M 0 ${cy-150} Q 130 ${cy} 0 ${cy+150}" fill="none" stroke="${lc}" stroke-width="1.5" opacity="${lo}"/>`;
+  svg += `<path d="M ${vb} ${cy-150} Q ${vb-130} ${cy} ${vb} ${cy+150}" fill="none" stroke="${lc}" stroke-width="1.5" opacity="${lo}"/>`;
+  svg += `<rect x="3" y="3" width="${vb-6}" height="${vb-6}" fill="none" stroke="${lc}" stroke-width="1.2" opacity="${lo*0.6}"/>`;
+
+  const levels = [10, 8, 6, 4, 2];
+  const fills = ["url(#hexDark)", "url(#hexLight)", "url(#hexDark)", "url(#hexLight)", "url(#hexDark)"];
+  levels.forEach((lv, i) => {
+    const r = (lv / 10) * maxR;
+    const pts = METRICS.map((_, j) => { const p = polar(cx, cy, r, j*step); return `${p.x},${p.y}`; }).join(" ");
+    svg += `<polygon points="${pts}" fill="${fills[i]}" stroke="#ffffff" stroke-width="2.2" opacity="1" filter="${i===0?'url(#hexShadow)':''}"/>`;
+  });
+  METRICS.forEach((_, i) => {
+    const p = polar(cx, cy, maxR, i*step);
+    svg += `<line x1="${cx}" y1="${cy}" x2="${p.x}" y2="${p.y}" stroke="#9ca3af" stroke-width="0.4" opacity="0.3"/>`;
+  });
+  for (let lv = 1; lv <= 10; lv++) {
+    const r = (lv / 10) * maxR;
+    svg += `<text x="${cx + r}" y="${cy + 3.5}" font-size="9.5" fill="#3a4452" font-family="monospace" text-anchor="middle" font-weight="700">${lv}</text>`;
+  }
+  if (visiblePeriods.has(-1) && teamAvg) {
+    svg += `<polygon points="${makePolygon(teamAvg,cx,cy,maxR)}" fill="#a8b0bc" fill-opacity="0.62" stroke="#6b7280" stroke-width="1.2" stroke-linejoin="round"/>`;
+  }
+  player.scores.forEach((test, pi) => {
+    if (!visiblePeriods.has(pi)) return;
+    const color = PERIOD_COLORS[Math.min(pi, PERIOD_COLORS.length-1)];
+    const isLatest = pi === player.scores.length - 1;
+    svg += `<polygon points="${makePolygon(test,cx,cy,maxR)}" fill="${color}" fill-opacity="${isLatest?0.14:0.03}" stroke="${color}" stroke-width="${isLatest?2.8:2}" stroke-linejoin="round" ${isLatest?'':'stroke-dasharray="7 4"'}/>`;
+    if (isLatest) {
+      METRICS.forEach((m,i) => {
+        const r = (test[m.key]/10)*maxR;
+        const p = polar(cx,cy,r,i*step);
+        svg += `<circle cx="${p.x}" cy="${p.y}" r="4.5" fill="${color}" stroke="#fff" stroke-width="2"/>`;
+      });
+    }
+  });
+  METRICS.forEach((m, i) => {
+    const angle = i * step;
+    const labelP = polar(cx, cy, maxR + 58, angle);
+    const isTop = i === 0;
+    const isBottom = i === 3;
+    let textX, textAnchor, iconX, iconY;
+    if (isTop) { iconX = labelP.x - 78; iconY = labelP.y - 14; textX = labelP.x - 48; textAnchor = "start"; }
+    else if (isBottom) { iconX = labelP.x + 46; iconY = labelP.y - 10; textX = labelP.x + 38; textAnchor = "end"; }
+    else if (m.iconLeft) { iconX = labelP.x - 28; iconY = labelP.y - 10; textX = labelP.x - 6; textAnchor = "start"; }
+    else { iconX = labelP.x + 8; iconY = labelP.y - 10; textX = labelP.x + 6; textAnchor = "end"; }
+    svg += `<g transform="translate(${iconX},${iconY})">${m.svg}</g>`;
+    svg += `<text x="${textX}" y="${labelP.y - 1}" text-anchor="${textAnchor}" font-size="11.5" font-weight="700" fill="#1e3a5f" font-family="'Inter',sans-serif">${m.label}</text>`;
+    svg += `<text x="${textX}" y="${labelP.y + 12}" text-anchor="${textAnchor}" font-size="9.5" fill="#6b7280" font-family="'Inter',sans-serif">(${m.sub})</text>`;
+  });
+  svg += `</svg></div>`;
+  wrap.innerHTML = svg;
+
+  const items = [];
+  if (visiblePeriods.has(-1)) {
+    items.push(`<span class="legend-item"><span class="legend-swatch" style="background:#a8b0bc;opacity:0.7"></span>Team Avg</span>`);
+  }
+  team.periods.forEach((p, idx) => {
+    if (!visiblePeriods.has(idx)) return;
+    const c = PERIOD_COLORS[Math.min(idx, PERIOD_COLORS.length-1)];
+    const isLast = idx === team.periods.length-1;
+    items.push(`<span class="legend-item">
+      <span class="legend-swatch" style="background:${isLast?c:'transparent'};border:${isLast?'none':`1.5px dashed ${c}`}"></span>
+      ${escapeHTML(p)}${isLast?' (latest)':''}
+    </span>`);
+  });
+  legend.innerHTML = `<div class="radar-legend">${items.join('')}</div>`;
+}
+
+function renderTrends() {
+  const wrap = document.getElementById("trendWrap");
+  if (currentView !== "trend" && currentView !== "both") { wrap.innerHTML = ""; return; }
+  const team = getTeam();
+  const player = getPlayer();
+  if (!player || player.scores.length === 0) { wrap.innerHTML = ""; return; }
+  let html = '<div class="trend-grid">';
+  METRICS.forEach(m => {
+    const vals = player.scores.map(t => t[m.key]);
+    const diff = vals[vals.length-1] - vals[0];
+    const w=280, h=100, pL=30, pR=10, pT=10, pB=22;
+    const plotW=w-pL-pR, plotH=h-pT-pB;
+    const minV = Math.max(0, Math.min(...vals)-1);
+    const maxV = Math.min(10, Math.max(...vals)+1);
+    const range = maxV - minV || 1;
+    const pts = vals.map((v,i) => ({
+      x: pL + (vals.length>1 ? (i/(vals.length-1))*plotW : plotW/2),
+      y: pT + (1-(v-minV)/range)*plotH
+    }));
+    const diffCls = diff>0.05?"up":diff<-0.05?"down":"flat";
+    const diffSymbol = diff>0.05?"▲":diff<-0.05?"▼":"─";
+    let svg = `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:90px">`;
+    svg += `<defs><linearGradient id="tg-${m.key}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#1e3a5f" stop-opacity="0.15"/><stop offset="100%" stop-color="#1e3a5f" stop-opacity="0.01"/></linearGradient></defs>`;
+    [minV,(minV+maxV)/2,maxV].forEach(v => {
+      const y = pT + (1-(v-minV)/range)*plotH;
+      svg += `<line x1="${pL}" y1="${y}" x2="${pL+plotW}" y2="${y}" stroke="#e5e7eb" stroke-width="0.5"/>`;
+      svg += `<text x="${pL-4}" y="${y+3}" font-size="7" fill="#aaa" text-anchor="end" font-family="monospace">${v.toFixed(1)}</text>`;
+    });
+    if (vals.length > 1) {
+      const areaStr = `${pL},${pT+plotH} ${pts.map(p=>`${p.x},${p.y}`).join(" ")} ${pL+plotW},${pT+plotH}`;
+      svg += `<polygon points="${areaStr}" fill="url(#tg-${m.key})"/>`;
+      svg += `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(" ")}" fill="none" stroke="#1e3a5f" stroke-width="2" stroke-linejoin="round"/>`;
+    }
+    pts.forEach((p,i) => {
+      const c = PERIOD_COLORS[Math.min(i, PERIOD_COLORS.length-1)];
+      svg += `<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="${c}" stroke="#fff" stroke-width="1.5"/>`;
+      svg += `<text x="${p.x}" y="${p.y-8}" font-size="8" font-weight="700" fill="#374151" text-anchor="middle" font-family="monospace">${vals[i].toFixed(1)}</text>`;
+      const pname = team.periods[i] || `T${i+1}`;
+      const short = pname.length > 8 ? pname.slice(0, 7) + "…" : pname;
+      svg += `<text x="${p.x}" y="${pT+plotH+12}" font-size="7" fill="#9ca3af" text-anchor="middle" font-family="'Inter',sans-serif">${escapeHTML(short)}</text>`;
+    });
+    svg += `</svg>`;
+    html += `<div class="trend-card">
+      <div class="trend-header">
+        <span class="trend-label">${m.emoji} ${m.label}</span>
+        <span class="trend-diff ${diffCls}">${diffSymbol} ${Math.abs(diff).toFixed(1)}</span>
+      </div>${svg}</div>`;
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+}
+
+function renderRanking() {
+  const team = getTeam();
+  const wrap = document.getElementById("rankWrap");
+  if (!team.players.length) {
+    wrap.innerHTML = `<h3 class="rank-title">📊 Team Growth Ranking</h3><div style="font-size:12px;color:var(--gray);padding:8px">No players yet.</div>`;
+    return;
+  }
+  const ranked = team.players.map(p => {
+    if (p.scores.length < 2) return { ...p, growth: 0 };
+    const f = p.scores[0], l = p.scores[p.scores.length-1];
+    const growth = METRICS.reduce((s,m) => s + (l[m.key]-f[m.key]), 0);
+    return { ...p, growth };
+  }).sort((a,b) => b.growth - a.growth);
+  let html = `<h3 class="rank-title">📊 Team Growth Ranking (cumulative)</h3>`;
+  ranked.forEach((p, rank) => {
+    const cls = rank===0?"gold":rank===1?"silver":rank===2?"bronze":"normal";
+    const hl = p.id === state.selectedPlayerId ? " highlight" : "";
+    const gCls = p.growth >= 0 ? "up" : "down";
+    const gSign = p.growth >= 0 ? "+" : "";
+    html += `<div class="rank-row${hl}">
+      <span class="rank-badge ${cls}">${rank+1}</span>
+      <span class="rank-name">${escapeHTML(p.name)} ${p.position?`<span class="pos">${escapeHTML(p.position)}</span>`:""}</span>
+      <span class="rank-growth ${gCls}">${gSign}${p.growth.toFixed(1)}</span>
+    </div>`;
+  });
+  wrap.innerHTML = html;
+}
+
+function renderDashboard() {
+  document.getElementById("dashboardView").classList.remove("hidden");
+  document.getElementById("editorView").classList.add("hidden");
+  renderPlayerBtns(); renderSummary(); renderPeriodBtns(); renderViewBtns();
+  renderRadar(); renderTrends(); renderRanking();
+}
+
+function renderEditor() {
+  document.getElementById("dashboardView").classList.add("hidden");
+  document.getElementById("editorView").classList.remove("hidden");
+  const team = getTeam();
+  const teamInput = document.getElementById("teamNameInput");
+  if (document.activeElement !== teamInput) teamInput.value = team.name;
+  teamInput.oninput = onTeamNameChange;
+  renderPeriodChips();
+  renderPlayerEditList();
+  document.getElementById("playerCount").textContent = team.players.length;
+}
+function renderPeriodChips() {
+  const team = getTeam();
+  document.getElementById("periodChips").innerHTML = team.periods.map((p, i) => `
+    <span class="period-chip">
+      <input type="text" value="${escapeHTML(p)}" oninput="onPeriodNameChange(${i}, this.value)">
+      <button class="x" onclick="deletePeriod(${i})" title="Delete">×</button>
+    </span>
+  `).join("");
+}
+function renderPlayerEditList() {
+  const team = getTeam();
+  const list = document.getElementById("playerEditList");
+  if (!team.players.length) {
+    list.innerHTML = `<div style="font-size:12px;color:var(--gray);padding:8px 4px">No players yet. Click "+ Add Player" below to start.</div>`;
+    return;
+  }
+  list.innerHTML = team.players.map(p => `
+    <div class="player-edit-card">
+      <div class="player-edit-header">
+        <input type="text" class="text-input small name-in" value="${escapeHTML(p.name)}" placeholder="Player name"
+          oninput="onPlayerFieldChange('${p.id}', 'name', this.value)">
+        <input type="text" class="text-input small pos-in" value="${escapeHTML(p.position||'')}" placeholder="Pos"
+          oninput="onPlayerFieldChange('${p.id}', 'position', this.value)">
+        <button class="delete" onclick="deletePlayer('${p.id}')" title="Delete player">🗑️</button>
+      </div>
+      <table class="score-table">
+        <thead>
+          <tr><th>Metric</th>${team.periods.map(per => `<th>${escapeHTML(per)}</th>`).join("")}</tr>
+        </thead>
+        <tbody>
+          ${METRICS.map(m => `
+            <tr>
+              <td>${m.emoji} ${m.label}<span class="metric-sub">${m.sub}</span></td>
+              ${p.scores.map((s, idx) => `
+                <td><input type="number" min="0" max="10" step="0.1" class="score-input"
+                  value="${s[m.key]}"
+                  oninput="onScoreChange('${p.id}', ${idx}, '${m.key}', this.value, this)"></td>
+              `).join("")}
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `).join("");
+}
+
+function renderAll() {
+  ensureSelection();
+  renderTeamTabs();
+  renderModeToggle();
+  if (state.mode === "editor") renderEditor();
+  else renderDashboard();
+}
+
+// =====================================================
+// Firebase wiring
+// =====================================================
+function setSyncStatus(status) {
+  const el = document.getElementById("syncIndicator");
+  const txt = document.getElementById("syncText");
+  el.className = "sync-indicator " + status;
+  txt.textContent = ({ syncing: "Syncing…", synced: "Synced", offline: "Offline" }[status]) || status;
+}
+window.appOnSyncStatus = setSyncStatus;
+window.appOnSyncError = (err) => {
+  setSyncStatus("offline");
+  if (err && (err.code === "permission-denied" || err.code === "unauthenticated")) {
+    toast("⚠️ Permission denied — check Firestore rules", true);
+  }
+};
+
+function applyRemoteState(data) {
+  if (!data || !data.teams) {
+    // First time: write sample data
+    state = makeSampleData();
+    ensureSelection();
+    resetVisiblePeriods();
+    renderAll();
+    window.firebaseAPI.saveDataNow(state);
+    return;
+  }
+  // Don't echo this back
+  suppressNextSave = true;
+  state = data;
+  ensureSelection();
+  resetVisiblePeriods();
+  renderAll();
+}
+
+function showApp() {
+  document.getElementById("loginOverlay").classList.add("hidden");
+  document.getElementById("configOverlay").classList.add("hidden");
+  document.getElementById("appContainer").style.display = "";
+}
+function showLogin() {
+  document.getElementById("loginOverlay").classList.remove("hidden");
+  document.getElementById("appContainer").style.display = "none";
+}
+function showConfigNeeded() {
+  document.getElementById("configOverlay").classList.remove("hidden");
+  document.getElementById("loginOverlay").classList.add("hidden");
+  document.getElementById("appContainer").style.display = "none";
+}
+
+function handleAuthChange(user) {
+  if (!user) {
+    showLogin();
+    return;
+  }
+  // Update user bar
+  const initials = (user.displayName || user.email || "?").split(/\s+/).map(s => s[0]).slice(0,2).join("").toUpperCase();
+  const avatar = document.getElementById("userAvatar");
+  if (user.photoURL) {
+    avatar.style.backgroundImage = `url(${user.photoURL})`;
+    avatar.textContent = "";
+  } else {
+    avatar.style.backgroundImage = "";
+    avatar.textContent = initials;
+  }
+  document.getElementById("userName").textContent = user.displayName || user.email || "Signed in";
+
+  showApp();
+  setSyncStatus("syncing");
+  window.firebaseAPI.subscribeData((data, meta) => {
+    applyRemoteState(data);
+    setSyncStatus(meta && meta.fromCache ? "offline" : "synced");
+  });
+}
+
+// Wire up buttons
+document.getElementById("googleSignInBtn").addEventListener("click", async () => {
+  const errEl = document.getElementById("loginError");
+  errEl.classList.add("hidden");
+  try {
+    await window.firebaseAPI.signIn();
+  } catch (err) {
+    let msg = err.message || String(err);
+    if (err.code === "auth/unauthorized-domain") {
+      msg = "This domain is not in the authorized domains list. Add it in Firebase Console → Authentication → Settings → Authorized domains.";
+    } else if (err.code === "auth/popup-blocked") {
+      msg = "Sign-in popup was blocked. Please allow popups for this site.";
+    } else if (err.code === "auth/popup-closed-by-user") {
+      msg = "Sign-in was cancelled.";
+    }
+    errEl.textContent = "Sign-in failed: " + msg;
+    errEl.classList.remove("hidden");
+  }
+});
+
+document.getElementById("signOutBtn").addEventListener("click", async () => {
+  if (!confirm("Sign out?")) return;
+  await window.firebaseAPI.signOutUser();
+});
+
+// Expose mutation functions for inline onclick
+window.selectTeam = selectTeam;
+window.addTeam = addTeam;
+window.deleteTeam = deleteTeam;
+window.selectPlayer = selectPlayer;
+window.addPlayer = addPlayer;
+window.deletePlayer = deletePlayer;
+window.addPeriod = addPeriod;
+window.deletePeriod = deletePeriod;
+window.onTeamNameChange = onTeamNameChange;
+window.onPeriodNameChange = onPeriodNameChange;
+window.onPlayerFieldChange = onPlayerFieldChange;
+window.onScoreChange = onScoreChange;
+window.togglePeriod = togglePeriod;
+window.setMode = setMode;
+window.setView = setView;
+window.exportData = exportData;
+window.importData = importData;
+window.resetData = resetData;
+
+// Boot
+let bootHandled = false;
+function bootFirebase() {
+  if (bootHandled) return;
+  bootHandled = true;
+  if (window.firebaseAPI.isConfigured()) {
+    window.firebaseAPI.onAuthChange(handleAuthChange);
+  } else {
+    showConfigNeeded();
+  }
+}
+window.addEventListener("firebase-ready", bootFirebase);
+window.addEventListener("firebase-not-configured", () => {
+  bootHandled = true;
+  showConfigNeeded();
+});
+
+// If firebaseAPI was already set (script order), boot now
+if (window.firebaseAPI) bootFirebase();
+
+// Safety fallback — if Firebase CDN failed to load entirely
+setTimeout(() => {
+  if (!bootHandled) {
+    showConfigNeeded();
+    const card = document.querySelector("#configOverlay .config-needed");
+    if (card) {
+      card.innerHTML = `<h3>⚠️ Firebase failed to load</h3>
+      <p>Could not reach the Firebase CDN. This usually means:</p>
+      <ol>
+        <li>You opened the file directly (<code>file://</code>) — ES modules need an HTTPS host. Deploy to GitHub Pages or run a local server.</li>
+        <li>Your network blocks <code>gstatic.com</code> / <code>googleapis.com</code>.</li>
+        <li>Your <code>FIREBASE_CONFIG</code> values are invalid.</li>
+      </ol>`;
+    }
+  }
+}, 4000);
+</script>
+</body>
+</html>
