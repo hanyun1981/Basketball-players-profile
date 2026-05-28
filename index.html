@@ -335,10 +335,50 @@
   }
   .score-input:focus { border-color: var(--navy); background: #eff6ff; }
   .score-input.bad { color: var(--red); border-color: #fecaca; }
+  .raw-input {
+    width: 100%; padding: 4px 2px; border: 1px solid #e5e7eb;
+    border-radius: 5px; text-align: center; font-size: 12px;
+    font-weight: 700; color: #1f2937; background: #fff;
+    outline: none; font-variant-numeric: tabular-nums;
+  }
+  .raw-input:focus { border-color: var(--navy); background: #eff6ff; }
+  .raw-input.bad { color: var(--red); border-color: #fecaca; }
+  .score-pill {
+    display: block; margin-top: 2px; font-size: 9.5px; font-weight: 800;
+    color: #047857; text-align: center; font-variant-numeric: tabular-nums;
+  }
 
   .data-tools { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
   .data-tools button { flex: 1; min-width: 110px; }
   .hidden { display: none !important; }
+
+  /* Test protocol cards */
+  .proto-card {
+    background: rgba(255,255,255,0.9); border-radius: 14px;
+    padding: 16px; margin-bottom: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  }
+  .proto-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .proto-head .pe { font-size: 22px; }
+  .proto-head .pt { font-size: 15px; font-weight: 800; color: var(--navy); }
+  .proto-head .ps {
+    font-size: 10px; font-weight: 700; color: #047857;
+    background: #ecfdf5; padding: 2px 8px; border-radius: 10px; margin-left: auto;
+  }
+  .proto-measure {
+    font-size: 12px; color: #374151; background: #f8fafc;
+    border-left: 3px solid var(--navy); border-radius: 0 6px 6px 0;
+    padding: 8px 10px; margin: 8px 0; line-height: 1.5;
+  }
+  .proto-equip { font-size: 11.5px; color: var(--gray); margin-bottom: 8px; line-height: 1.5; }
+  .proto-equip b { color: #4b5563; }
+  .proto-steps { margin: 0 0 6px 0; padding-left: 20px; }
+  .proto-steps li { font-size: 12px; color: #374151; line-height: 1.7; margin-bottom: 2px; }
+  .proto-note {
+    font-size: 11px; color: #92400e; background: #fffbeb;
+    border: 1px solid #fde68a; border-radius: 8px;
+    padding: 7px 10px; margin-top: 8px; line-height: 1.5;
+  }
 
   .toast {
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -470,6 +510,35 @@
       </div>
       <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
     </div>
+  </div>
+
+  <div id="standardsView" class="hidden">
+    <div class="editor-section">
+      <h3>📏 Scoring Standards</h3>
+      <p style="font-size:11.5px;color:var(--gray);margin-bottom:6px;line-height:1.55">
+        Define what raw measurement equals a score of <b>1</b> (entry level) and <b>10</b> (elite) for a typical high-school varsity player. Raw data entered for players is converted to a 1–10 score using these benchmarks. Standards are shared by all teams.
+      </p>
+      <p style="font-size:10.5px;color:var(--gray-light);margin-bottom:12px">↑ = higher is better · ↓ = lower (faster) is better</p>
+      <div id="standardsList"></div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="secondary-btn" onclick="resetStandards()">↺ Reset to Defaults</button>
+      </div>
+    </div>
+    <div class="editor-section">
+      <h3>🧮 Quick Reference</h3>
+      <p style="font-size:11.5px;color:var(--gray);margin-bottom:10px">Score for each raw value, based on current standards:</p>
+      <div id="standardsPreview" style="overflow-x:auto"></div>
+    </div>
+  </div>
+
+  <div id="protocolsView" class="hidden">
+    <div class="editor-section">
+      <h3>📖 測驗實施方式 Test Protocols</h3>
+      <p style="font-size:11.5px;color:var(--gray);line-height:1.55;margin-bottom:2px">
+        六項能力測驗的標準施測流程。所有人 (含僅瀏覽者) 皆可查閱,確保各期測驗條件一致、數據可比較。
+      </p>
+    </div>
+    <div id="protocolsList"></div>
   </div>
 </div>
 
@@ -666,13 +735,129 @@ const ICONS = {
 };
 
 const METRICS = [
-  { key:"jump",     label:"Vertical Jump",   sub:"Power",        emoji:"🤸", svg:ICONS.jump,    iconLeft:true  },
-  { key:"agility",  label:"4-Corner Drill",  sub:"Agility",      emoji:"⚡", svg:ICONS.agility, iconLeft:false },
-  { key:"shooting", label:"Spot Shooting",   sub:"Accuracy",     emoji:"🎯", svg:ICONS.shoot,   iconLeft:false },
-  { key:"dribble",  label:"Obstacle Dribble",sub:"Control",      emoji:"🏀", svg:ICONS.dribble, iconLeft:false },
-  { key:"cardio",   label:"15-Lap Shuttle",  sub:"Stamina",      emoji:"🏃", svg:ICONS.cardio,  iconLeft:true  },
-  { key:"passing",  label:"Passing Test",    sub:"Coordination", emoji:"🙌", svg:ICONS.pass,    iconLeft:true  },
+  { key:"jump",     label:"Vertical Jump",   sub:"Power",        emoji:"🤸", svg:ICONS.jump,    iconLeft:true,  unit:"cm",   higherBetter:true  },
+  { key:"agility",  label:"4-Corner Drill",  sub:"Agility",      emoji:"⚡", svg:ICONS.agility, iconLeft:false, unit:"sec",  higherBetter:false },
+  { key:"shooting", label:"Spot Shooting",   sub:"Accuracy",     emoji:"🎯", svg:ICONS.shoot,   iconLeft:false, unit:"/20",  higherBetter:true  },
+  { key:"dribble",  label:"Obstacle Dribble",sub:"Control",      emoji:"🏀", svg:ICONS.dribble, iconLeft:false, unit:"sec",  higherBetter:false },
+  { key:"cardio",   label:"15-Lap Shuttle",  sub:"Stamina",      emoji:"🏃", svg:ICONS.cardio,  iconLeft:true,  unit:"sec",  higherBetter:false },
+  { key:"passing",  label:"Passing Test",    sub:"Coordination", emoji:"🙌", svg:ICONS.pass,    iconLeft:true,  unit:"/10",  higherBetter:true  },
 ];
+
+// Default scoring standards for a typical high-school varsity team.
+// For each metric: raw value that scores 1 (entry level) and 10 (elite).
+// Direction is implicit — if best < worst (e.g. seconds), lower is better.
+function makeDefaultStandards() {
+  return {
+    jump:     { worst: 35,  best: 70 },   // cm,  higher better
+    agility:  { worst: 14,  best: 9  },   // sec, lower better
+    shooting: { worst: 5,   best: 18 },   // makes out of 20
+    dribble:  { worst: 18,  best: 11 },   // sec, lower better
+    cardio:   { worst: 100, best: 62 },   // sec for 15 laps, lower better
+    passing:  { worst: 3,   best: 10 },   // makes out of 10
+  };
+}
+
+// Convert a raw measurement to a 1–10 standardized score (clamped 0–10).
+function rawToScore(raw, metricKey, standards) {
+  const std = (standards || (state && state.standards) || {})[metricKey];
+  const v = parseFloat(raw);
+  if (!std || raw === "" || raw == null || isNaN(v)) return 0;
+  const { worst, best } = std;
+  if (best === worst) return 1;
+  const s = 1 + 9 * (v - worst) / (best - worst);
+  return Math.max(0, Math.min(10, s));
+}
+// Convert a raw entry {jump:42, agility:11.5, ...} → score object {jump:7.1, ...}
+function entryToScores(entry, standards) {
+  const out = {};
+  METRICS.forEach(m => { out[m.key] = rawToScore(entry ? entry[m.key] : null, m.key, standards); });
+  return out;
+}
+function emptyEntry() {
+  const e = {};
+  METRICS.forEach(m => { e[m.key] = ""; });
+  return e;
+}
+
+// Test protocol descriptions (how each measurement is carried out).
+const TEST_PROTOCOLS = {
+  jump: {
+    title: "垂直起跳 Vertical Jump",
+    measure: "記錄「摸高差」= 起跳最高觸及點 − 站立摸高，單位公分 (cm)。",
+    equipment: "牆面或垂直跳測量器 (Vertec)、粉筆或測量貼點、捲尺。",
+    steps: [
+      "球員側身貼牆站直，手臂向上完全伸直，記錄站立摸高 (cm)。",
+      "雙腳與肩同寬，原地下蹲後全力垂直起跳，於最高點以手指觸點。",
+      "不可助跑、不可墊步，僅能原地起跳。",
+      "測 3 次，取最高一次的觸及點。",
+      "摸高差 = 最高觸及點 − 站立摸高。"
+    ],
+    note: "數值越高越好。建議穿著一般球鞋,於同一面牆統一施測。"
+  },
+  agility: {
+    title: "禁區四點移動 4-Corner Drill",
+    measure: "完成四角折返移動的總秒數 (sec)。",
+    equipment: "4 個角錐、碼錶。",
+    steps: [
+      "在禁區四個角 (或邊長 4–5 公尺的正方形) 各放一個角錐。",
+      "球員從起點角錐出發,以滑步/變向方式依序碰觸四個角錐。",
+      "面向同一方向 (面向籃框),全程採防守滑步,不可交叉步。",
+      "回到起點完成一圈即停錶。",
+      "測 2 次,取較快 (秒數較小) 的一次。"
+    ],
+    note: "數值越低 (越快) 越好。強調腳步與重心控制,而非單純衝刺。"
+  },
+  shooting: {
+    title: "靜態定點投籃 Spot Shooting",
+    measure: "固定點位出手,記錄命中數 (滿分 20 球)。",
+    equipment: "籃球、籃框、地面標記 5 個點位。",
+    steps: [
+      "在罰球線弧頂與兩側共設 5 個固定點 (距籃框約 4–5 公尺)。",
+      "每點投 4 球,共 20 球。",
+      "原地接球出手,不可運球或移動 (靜態定點)。",
+      "記錄總命中數 (0–20)。"
+    ],
+    note: "數值越高越好。可由教練或同伴傳球給受測者,維持節奏一致。"
+  },
+  dribble: {
+    title: "障礙運球計時 Obstacle Dribble",
+    measure: "完成障礙運球路線的總秒數 (sec)。",
+    equipment: "籃球、5–6 個角錐、碼錶。",
+    steps: [
+      "沿直線每隔約 1.5 公尺擺放角錐 (共 5–6 個)。",
+      "球員運球以 Z 字方式繞過每個角錐,到底後折返。",
+      "去程慣用手、回程非慣用手 (或依隊規統一)。",
+      "全程不可漏繞、不可失球;失球須回到失球處繼續。",
+      "測 2 次,取較快的一次。"
+    ],
+    note: "數值越低 (越快) 越好。兼顧速度與控球穩定度。"
+  },
+  cardio: {
+    title: "15 趟折返跑 15-Lap Shuttle",
+    measure: "完成 15 趟折返跑的總秒數 (sec)。",
+    equipment: "籃球場 (端線到端線約 28 公尺)、碼錶。",
+    steps: [
+      "起點設於底線,聽口令出發。",
+      "全速跑至對面底線並用腳踩線,折返算 1 趟。",
+      "連續完成 15 趟 (來回共 15 段),每次折返須踩線。",
+      "全程不可中斷,計時至第 15 趟踩線結束。"
+    ],
+    note: "數值越低 (越快) 越好。測耐力與反覆衝刺能力,建議充分熱身後施測。"
+  },
+  passing: {
+    title: "傳球準度測試 Passing Test",
+    measure: "對牆面目標區傳球,記錄命中數 (滿分 10 球)。",
+    equipment: "籃球、牆面目標 (貼出約 50×50 公分方框,中心離地約 1 公尺)。",
+    steps: [
+      "球員站於距牆約 3 公尺處。",
+      "以胸前傳球 (或依隊規) 瞄準牆上目標框,共傳 10 球。",
+      "球進入目標框內算 1 次命中。",
+      "記錄總命中數 (0–10)。"
+    ],
+    note: "數值越高越好。可加入接反彈球後再傳,以測協調與節奏。"
+  }
+};
+
 // Colors assigned by recency (latest period = strongest navy).
 // Index 0 = latest, 1 = previous, 2 = older, etc.
 const RECENCY_COLORS = ["#1e3a5f", "#0891b2", "#f59e0b", "#7c3aed", "#ec4899", "#16a34a", "#dc2626", "#64748b"];
@@ -704,26 +889,30 @@ function computeRole() {
 function isEditor() { return userRole === "editor"; }
 
 function makeSampleData() {
+  // Values are RAW measurements: jump=cm, agility/dribble/cardio=seconds,
+  // shooting=makes/20, passing=makes/10. They convert to scores via standards.
   return {
+    dataVersion: 2,
+    standards: makeDefaultStandards(),
     teams: [
       { id:"t1", name:"Varsity",
         periods:["2024 H2","2025 H1","2025 H2","2026 H1"],
         players:[
           { id:"p1", name:"John Smith", position:"SG", scores:[
-            {jump:4.0,agility:4.2,shooting:3.5,dribble:3.8,cardio:4.0,passing:4.5},
-            {jump:5.6,agility:5.5,shooting:4.6,dribble:4.8,cardio:5.7,passing:6.3},
-            {jump:6.7,agility:6.2,shooting:5.7,dribble:5.5,cardio:6.5,passing:7.5},
-            {jump:7.4,agility:7.0,shooting:6.5,dribble:6.2,cardio:7.2,passing:8.0}]},
+            {jump:44, agility:13.0, shooting:8,  dribble:16.5, cardio:92, passing:5},
+            {jump:52, agility:12.2, shooting:11, dribble:15.0, cardio:84, passing:6},
+            {jump:58, agility:11.6, shooting:13, dribble:14.0, cardio:78, passing:8},
+            {jump:62, agility:11.0, shooting:15, dribble:13.2, cardio:74, passing:9}]},
           { id:"p2", name:"Mike Davis", position:"PF", scores:[
-            {jump:3.2,agility:3.5,shooting:2.8,dribble:3.0,cardio:3.2,passing:3.5},
-            {jump:4.0,agility:4.8,shooting:3.5,dribble:3.9,cardio:4.3,passing:5.0},
-            {jump:4.9,agility:5.4,shooting:4.5,dribble:4.7,cardio:5.0,passing:6.3},
-            {jump:5.8,agility:6.0,shooting:5.2,dribble:5.5,cardio:5.8,passing:7.0}]},
+            {jump:40, agility:13.4, shooting:7,  dribble:17.0, cardio:96, passing:4},
+            {jump:44, agility:12.6, shooting:9,  dribble:16.0, cardio:90, passing:6},
+            {jump:48, agility:12.0, shooting:11, dribble:15.2, cardio:85, passing:7},
+            {jump:52, agility:11.6, shooting:12, dribble:14.6, cardio:81, passing:8}]},
           { id:"p3", name:"Chris Lee", position:"PG", scores:[
-            {jump:6.0,agility:5.8,shooting:5.0,dribble:5.5,cardio:6.2,passing:7.5},
-            {jump:7.2,agility:7.0,shooting:6.2,dribble:6.2,cardio:7.5,passing:8.8},
-            {jump:7.8,agility:7.5,shooting:6.9,dribble:6.8,cardio:8.0,passing:8.8},
-            {jump:8.2,agility:8.0,shooting:7.5,dribble:7.2,cardio:8.5,passing:9.2}]},
+            {jump:54, agility:11.8, shooting:11, dribble:14.2, cardio:80, passing:8},
+            {jump:60, agility:11.2, shooting:13, dribble:13.4, cardio:74, passing:9},
+            {jump:64, agility:10.6, shooting:14, dribble:12.8, cardio:70, passing:9},
+            {jump:67, agility:10.2, shooting:16, dribble:12.2, cardio:66, passing:10}]},
         ]
       }
     ],
@@ -808,7 +997,7 @@ function addPlayer() {
   const name = prompt("Player name:", "New Player");
   if (!name || !name.trim()) return;
   const id = "p" + Date.now();
-  const scores = team.periods.map(() => ({ jump:5, agility:5, shooting:5, dribble:5, cardio:5, passing:5 }));
+  const scores = team.periods.map(() => emptyEntry());
   team.players.push({ id, name: name.trim(), position: "", scores });
   if (!state.selectedPlayerId) state.selectedPlayerId = id;
   renderAll();
@@ -832,7 +1021,7 @@ function addPeriod() {
   const name = prompt("New period name (e.g. '2026 H2'):", suggestion);
   if (!name || !name.trim()) return;
   team.periods.push(name.trim());
-  team.players.forEach(p => p.scores.push({jump:5, agility:5, shooting:5, dribble:5, cardio:5, passing:5}));
+  team.players.forEach(p => p.scores.push(emptyEntry()));
   resetVisiblePeriods();
   renderAll();
   persist();
@@ -867,14 +1056,21 @@ function onPlayerFieldChange(pid, field, value) {
   p[field] = value;
   persist();
 }
-function onScoreChange(pid, periodIdx, key, value, inputEl) {
-  const v = parseFloat(value);
-  if (isNaN(v) || v < 0 || v > 10) { inputEl.classList.add("bad"); return; }
-  inputEl.classList.remove("bad");
+function onRawChange(pid, periodIdx, key, value, inputEl) {
   const team = getTeam();
   const p = team.players.find(p => p.id === pid);
   if (!p) return;
-  p.scores[periodIdx][key] = v;
+  const trimmed = String(value).trim();
+  // Store raw measurement (empty allowed = no data)
+  p.scores[periodIdx][key] = trimmed === "" ? "" : parseFloat(trimmed);
+  // Live-update the converted score pill
+  const pill = document.getElementById(`pill-${pid}-${periodIdx}-${key}`);
+  if (pill) {
+    const sc = rawToScore(p.scores[periodIdx][key], key);
+    pill.textContent = sc > 0 ? sc.toFixed(1) : "–";
+  }
+  if (trimmed !== "" && isNaN(parseFloat(trimmed))) inputEl.classList.add("bad");
+  else inputEl.classList.remove("bad");
   persist();
 }
 
@@ -942,11 +1138,14 @@ function calcTeamAvg(team) {
   METRICS.forEach(m => {
     let sum = 0, n = 0;
     team.players.forEach(p => {
-      if (p.scores.length > 0) { sum += p.scores[p.scores.length-1][m.key]; n++; }
+      if (p.scores.length > 0) {
+        sum += rawToScore(p.scores[p.scores.length-1][m.key], m.key);
+        n++;
+      }
     });
     out[m.key] = n > 0 ? +(sum / n).toFixed(2) : 0;
   });
-  return out;
+  return out; // a SCORE object (0–10)
 }
 function polar(cx, cy, r, deg) {
   const rad = (deg - 90) * Math.PI / 180;
@@ -974,12 +1173,14 @@ function renderTeamTabs() {
   document.getElementById("teamTabs").innerHTML = tabs + addBtn;
 }
 function renderModeToggle() {
-  const editBtn = isEditor()
-    ? `<button class="mode-btn ${state.mode==='editor'?'active':''}" onclick="setMode('editor')">✏️ Edit Data</button>`
+  const editBtns = isEditor()
+    ? `<button class="mode-btn ${state.mode==='editor'?'active':''}" onclick="setMode('editor')">✏️ Edit Data</button>
+       <button class="mode-btn ${state.mode==='standards'?'active':''}" onclick="setMode('standards')">📏 Standards</button>`
     : "";
   document.getElementById("modeToggle").innerHTML = `
     <button class="mode-btn ${state.mode==='dashboard'?'active':''}" onclick="setMode('dashboard')">📊 Dashboard</button>
-    ${editBtn}
+    ${editBtns}
+    <button class="mode-btn ${state.mode==='protocols'?'active':''}" onclick="setMode('protocols')">📖 測驗說明</button>
   `;
 }
 function renderUserRole() {
@@ -1002,7 +1203,8 @@ function selectPlayer(id) { state.selectedPlayerId = id; renderDashboard(); pers
 function renderSummary() {
   const player = getPlayer();
   if (!player || player.scores.length === 0) { document.getElementById("summaryCards").innerHTML = ""; return; }
-  const first = player.scores[0], last = player.scores[player.scores.length-1];
+  const first = entryToScores(player.scores[0]);
+  const last = entryToScores(player.scores[player.scores.length-1]);
   const totalGrowth = METRICS.reduce((s,m) => s + (last[m.key]-first[m.key]), 0);
   const best = METRICS.reduce((b,m) => last[m.key] > last[b.key] ? m : b, METRICS[0]);
   const gCls = totalGrowth >= 0 ? "growth" : "growth neg";
@@ -1108,23 +1310,23 @@ function renderRadar() {
   const order = player.scores.map((_, i) => i).sort((a, b) => a - b); // oldest→newest
   order.forEach((pi) => {
     if (!visiblePeriods.has(pi)) return;
-    const test = player.scores[pi];
+    const sc = entryToScores(player.scores[pi]);
     const color = periodColor(pi, totalPeriods);
     const isLatest = pi === totalPeriods - 1;
     // No fill on non-latest (keeps lines readable when overlapping); thin colored fill on latest
     const fillOp = isLatest ? 0.18 : 0;
     const sw = isLatest ? 3 : 2;
-    svg += `<polygon points="${makePolygon(test,cx,cy,maxR)}" fill="${color}" fill-opacity="${fillOp}" stroke="${color}" stroke-width="${sw}" stroke-linejoin="round" ${isLatest?'':'stroke-dasharray="6 4"'}/>`;
+    svg += `<polygon points="${makePolygon(sc,cx,cy,maxR)}" fill="${color}" fill-opacity="${fillOp}" stroke="${color}" stroke-width="${sw}" stroke-linejoin="round" ${isLatest?'':'stroke-dasharray="6 4"'}/>`;
   });
   // Draw vertex dots on top — latest gets big dots, others get small dots
   order.forEach((pi) => {
     if (!visiblePeriods.has(pi)) return;
-    const test = player.scores[pi];
+    const sc = entryToScores(player.scores[pi]);
     const color = periodColor(pi, totalPeriods);
     const isLatest = pi === totalPeriods - 1;
     const rr = isLatest ? 4.5 : 3;
     METRICS.forEach((m,i) => {
-      const r = (test[m.key]/10)*maxR;
+      const r = (sc[m.key]/10)*maxR;
       const p = polar(cx,cy,r,i*step);
       svg += `<circle cx="${p.x}" cy="${p.y}" r="${rr}" fill="${color}" stroke="#fff" stroke-width="${isLatest?2:1.4}"/>`;
     });
@@ -1170,7 +1372,8 @@ function renderTrends() {
   if (!player || player.scores.length === 0) { wrap.innerHTML = ""; return; }
   let html = '<div class="trend-grid">';
   METRICS.forEach(m => {
-    const vals = player.scores.map(t => t[m.key]);
+    const raws = player.scores.map(t => t[m.key]);
+    const vals = player.scores.map(t => rawToScore(t[m.key], m.key));
     const diff = vals[vals.length-1] - vals[0];
     const w=280, h=100, pL=30, pR=10, pT=10, pB=22;
     const plotW=w-pL-pR, plotH=h-pT-pB;
@@ -1223,7 +1426,8 @@ function renderRanking() {
   }
   const ranked = team.players.map(p => {
     if (p.scores.length < 2) return { ...p, growth: 0 };
-    const f = p.scores[0], l = p.scores[p.scores.length-1];
+    const f = entryToScores(p.scores[0]);
+    const l = entryToScores(p.scores[p.scores.length-1]);
     const growth = METRICS.reduce((s,m) => s + (l[m.key]-f[m.key]), 0);
     return { ...p, growth };
   }).sort((a,b) => b.growth - a.growth);
@@ -1242,15 +1446,22 @@ function renderRanking() {
   wrap.innerHTML = html;
 }
 
+function hideAllViews() {
+  ["dashboardView","editorView","standardsView","protocolsView"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add("hidden");
+  });
+}
+
 function renderDashboard() {
+  hideAllViews();
   document.getElementById("dashboardView").classList.remove("hidden");
-  document.getElementById("editorView").classList.add("hidden");
   renderPlayerBtns(); renderSummary(); renderPeriodBtns(); renderViewBtns();
   renderRadar(); renderTrends(); renderRanking();
 }
 
 function renderEditor() {
-  document.getElementById("dashboardView").classList.add("hidden");
+  hideAllViews();
   document.getElementById("editorView").classList.remove("hidden");
   const team = getTeam();
   const teamInput = document.getElementById("teamNameInput");
@@ -1260,6 +1471,92 @@ function renderEditor() {
   renderPlayerEditList();
   renderAccessPanel();
   document.getElementById("playerCount").textContent = team.players.length;
+}
+
+function renderProtocols() {
+  hideAllViews();
+  document.getElementById("protocolsView").classList.remove("hidden");
+  const list = document.getElementById("protocolsList");
+  list.innerHTML = METRICS.map(m => {
+    const pr = TEST_PROTOCOLS[m.key];
+    if (!pr) return "";
+    const dir = m.higherBetter ? "數值越高越好 ↑" : "數值越低越好 ↓";
+    return `<div class="proto-card">
+      <div class="proto-head">
+        <span class="pe">${m.emoji}</span>
+        <span class="pt">${escapeHTML(pr.title)}</span>
+        <span class="ps">${m.unit} · ${dir}</span>
+      </div>
+      <div class="proto-measure"><b>量測方式：</b>${escapeHTML(pr.measure)}</div>
+      <div class="proto-equip"><b>器材：</b>${escapeHTML(pr.equipment)}</div>
+      <div style="font-size:11.5px;font-weight:700;color:#4b5563;margin-bottom:2px">實施步驟：</div>
+      <ol class="proto-steps">${pr.steps.map(s => `<li>${escapeHTML(s)}</li>`).join("")}</ol>
+      <div class="proto-note">💡 ${escapeHTML(pr.note)}</div>
+    </div>`;
+  }).join("");
+}
+
+function renderStandards() {
+  hideAllViews();
+  document.getElementById("standardsView").classList.remove("hidden");
+  if (!state.standards) state.standards = makeDefaultStandards();
+  const std = state.standards;
+  const list = document.getElementById("standardsList");
+  list.innerHTML = METRICS.map(m => {
+    const s = std[m.key] || {worst:0,best:10};
+    return `<div class="player-edit-card" style="padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:700;color:var(--navy)">${m.emoji} ${m.label}</span>
+        <span style="font-size:10px;color:var(--gray-light)">${m.sub} · ${m.unit} · ${m.higherBetter?'higher better ↑':'lower/faster better ↓'}</span>
+      </div>
+      <div class="field-row" style="margin-bottom:0">
+        <label style="min-width:auto;font-size:11px">Score 1 (entry)</label>
+        <input type="number" step="0.1" class="text-input small" style="max-width:90px" value="${s.worst}"
+          oninput="onStandardChange('${m.key}','worst',this.value)">
+        <label style="min-width:auto;font-size:11px;margin-left:6px">Score 10 (elite)</label>
+        <input type="number" step="0.1" class="text-input small" style="max-width:90px" value="${s.best}"
+          oninput="onStandardChange('${m.key}','best',this.value)">
+        <span style="font-size:10px;color:var(--gray-light)">${m.unit}</span>
+      </div>
+    </div>`;
+  }).join("");
+  renderStandardsPreview();
+}
+
+function renderStandardsPreview() {
+  const std = state.standards || makeDefaultStandards();
+  // Build a table: rows = sample raw values across the range, cols = metrics
+  let html = `<table class="score-table" style="min-width:520px"><thead><tr><th>Score</th>${METRICS.map(m=>`<th>${m.emoji} ${m.label}<span class="metric-sub">${m.unit}</span></th>`).join("")}</tr></thead><tbody>`;
+  for (let target = 10; target >= 1; target -= 1.5) {
+    const t = Math.round(target*10)/10;
+    html += `<tr><td style="font-weight:800;color:#047857">${t.toFixed(1)}</td>`;
+    METRICS.forEach(m => {
+      const s = std[m.key] || {worst:0,best:10};
+      // invert score→raw: raw = worst + (score-1)/9 * (best-worst)
+      const raw = s.worst + (t - 1) / 9 * (s.best - s.worst);
+      html += `<td>${raw.toFixed(1)}</td>`;
+    });
+    html += `</tr>`;
+  }
+  html += `</tbody></table>`;
+  document.getElementById("standardsPreview").innerHTML = html;
+}
+
+function onStandardChange(key, which, value) {
+  if (!state.standards) state.standards = makeDefaultStandards();
+  const v = parseFloat(value);
+  if (isNaN(v)) return;
+  state.standards[key][which] = v;
+  renderStandardsPreview();
+  persist();
+}
+
+function resetStandards() {
+  if (!confirm("Reset all scoring standards to the default high-school varsity benchmarks?")) return;
+  state.standards = makeDefaultStandards();
+  renderStandards();
+  persist();
+  toast("✓ Standards reset to defaults");
 }
 
 function renderAccessPanel() {
@@ -1328,6 +1625,7 @@ function renderPlayerEditList() {
           oninput="onPlayerFieldChange('${p.id}', 'position', this.value)">
         <button class="delete" onclick="deletePlayer('${p.id}')" title="Delete player">🗑️</button>
       </div>
+      <p style="font-size:10px;color:var(--gray-light);margin:0 0 6px 2px">Enter <b>raw measurements</b>. The 1–10 score (small green number) updates automatically from your standards.</p>
       <table class="score-table">
         <thead>
           <tr><th>Metric</th>${team.periods.map(per => `<th>${escapeHTML(per)}</th>`).join("")}</tr>
@@ -1335,12 +1633,17 @@ function renderPlayerEditList() {
         <tbody>
           ${METRICS.map(m => `
             <tr>
-              <td>${m.emoji} ${m.label}<span class="metric-sub">${m.sub}</span></td>
-              ${p.scores.map((s, idx) => `
-                <td><input type="number" min="0" max="10" step="0.1" class="score-input"
-                  value="${s[m.key]}"
-                  oninput="onScoreChange('${p.id}', ${idx}, '${m.key}', this.value, this)"></td>
-              `).join("")}
+              <td>${m.emoji} ${m.label}<span class="metric-sub">${m.sub} · ${m.unit}${m.higherBetter?' ↑':' ↓'}</span></td>
+              ${p.scores.map((s, idx) => {
+                const sc = rawToScore(s[m.key], m.key);
+                return `<td>
+                  <input type="number" step="0.1" class="raw-input"
+                    value="${s[m.key]!=null && s[m.key]!=='' ? s[m.key] : ''}"
+                    placeholder="—"
+                    oninput="onRawChange('${p.id}', ${idx}, '${m.key}', this.value, this)">
+                  <span class="score-pill" id="pill-${p.id}-${idx}-${m.key}">${sc>0?sc.toFixed(1):'–'}</span>
+                </td>`;
+              }).join("")}
             </tr>
           `).join("")}
         </tbody>
@@ -1350,7 +1653,7 @@ function renderPlayerEditList() {
 }
 
 function renderEmptyApp() {
-  document.getElementById("editorView").classList.add("hidden");
+  hideAllViews();
   document.getElementById("dashboardView").classList.remove("hidden");
   ["playerBtns","summaryCards","periodBtns","viewBtns","radarLegend","trendWrap","rankWrap"].forEach(id => {
     document.getElementById(id).innerHTML = "";
@@ -1372,10 +1675,13 @@ function renderEmptyApp() {
 
 function renderAll() {
   ensureSelection();
-  if (!isEditor() && state.mode === "editor") state.mode = "dashboard";
+  if (!state.standards) state.standards = makeDefaultStandards();
+  if (!isEditor() && (state.mode === "editor" || state.mode === "standards")) state.mode = "dashboard";
   renderUserRole();
   renderTeamTabs();
   renderModeToggle();
+  if (state.mode === "protocols") { renderProtocols(); return; }
+  if (state.mode === "standards" && isEditor()) { renderStandards(); return; }
   if (!state.teams || state.teams.length === 0) {
     renderEmptyApp();
     return;
@@ -1404,12 +1710,13 @@ window.appOnSyncError = (err) => {
 function applyRemoteState(data, meta) {
   if (!data || !data.teams) {
     // No shared data exists yet.
-    state = { teams: [], selectedTeamId: null, selectedPlayerId: null, mode: "dashboard" };
+    state = { teams: [], selectedTeamId: null, selectedPlayerId: null, mode: "dashboard", standards: makeDefaultStandards() };
     renderAll();
     return;
   }
-  // Ignore echoes of our own writes (data identical to what we already show)
+  // Ignore echoes of our own writes (teams AND standards identical to what we show)
   if (JSON.stringify(data.teams) === JSON.stringify(state.teams) &&
+      JSON.stringify(data.standards||{}) === JSON.stringify(state.standards||{}) &&
       JSON.stringify(data.teams) !== JSON.stringify([])) {
     return;
   }
@@ -1418,12 +1725,14 @@ function applyRemoteState(data, meta) {
   const prevPlayer = state.selectedPlayerId;
   const prevMode = state.mode;
   state = data;
+  if (!state.standards) state.standards = makeDefaultStandards();
   if (state.teams.find(t => t.id === prevTeam)) {
     state.selectedTeamId = prevTeam;
     const t = getTeam();
     if (t && t.players.find(p => p.id === prevPlayer)) state.selectedPlayerId = prevPlayer;
   }
-  state.mode = (prevMode === "editor" && isEditor()) ? "editor" : "dashboard";
+  if (prevMode === "protocols") state.mode = "protocols";
+  else state.mode = ((prevMode === "editor" || prevMode === "standards") && isEditor()) ? prevMode : "dashboard";
   ensureSelection();
   resetVisiblePeriods();
   renderAll();
@@ -1523,7 +1832,7 @@ window.deletePeriod = deletePeriod;
 window.onTeamNameChange = onTeamNameChange;
 window.onPeriodNameChange = onPeriodNameChange;
 window.onPlayerFieldChange = onPlayerFieldChange;
-window.onScoreChange = onScoreChange;
+window.onRawChange = onRawChange;
 window.togglePeriod = togglePeriod;
 window.setMode = setMode;
 window.setView = setView;
@@ -1531,6 +1840,8 @@ window.exportData = exportData;
 window.importData = importData;
 window.resetData = resetData;
 window.addEditor = addEditor;
+window.onStandardChange = onStandardChange;
+window.resetStandards = resetStandards;
 window.removeEditor = removeEditor;
 
 // Boot
