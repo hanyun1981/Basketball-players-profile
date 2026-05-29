@@ -735,12 +735,12 @@ const ICONS = {
 };
 
 const METRICS = [
-  { key:"jump",     label:"Vertical Jump",   sub:"Power",        emoji:"🤸", svg:ICONS.jump,    iconLeft:true,  unit:"cm",   higherBetter:true  },
-  { key:"agility",  label:"4-Corner Drill",  sub:"Agility",      emoji:"⚡", svg:ICONS.agility, iconLeft:false, unit:"sec",  higherBetter:false },
-  { key:"shooting", label:"Spot Shooting",   sub:"Accuracy",     emoji:"🎯", svg:ICONS.shoot,   iconLeft:false, unit:"/20",  higherBetter:true  },
-  { key:"dribble",  label:"Obstacle Dribble",sub:"Control",      emoji:"🏀", svg:ICONS.dribble, iconLeft:false, unit:"sec",  higherBetter:false },
-  { key:"cardio",   label:"15-Lap Shuttle",  sub:"Stamina",      emoji:"🏃", svg:ICONS.cardio,  iconLeft:true,  unit:"sec",  higherBetter:false },
-  { key:"passing",  label:"Moving Pass Test", sub:"Coordination", emoji:"🙌", svg:ICONS.pass,    iconLeft:true,  unit:"/16",  higherBetter:true  },
+  { key:"jump",     label:"Vertical Jump",   sub:"Power",        emoji:"🤸", svg:ICONS.jump,    iconLeft:true,  unit:"cm",   higherBetter:true,  decimals:0 },
+  { key:"agility",  label:"4-Corner Drill",  sub:"Agility",      emoji:"⚡", svg:ICONS.agility, iconLeft:false, unit:"sec",  higherBetter:false, decimals:1 },
+  { key:"shooting", label:"Spot Shooting",   sub:"Accuracy",     emoji:"🎯", svg:ICONS.shoot,   iconLeft:false, unit:"/20",  higherBetter:true,  decimals:0 },
+  { key:"dribble",  label:"Obstacle Dribble",sub:"Control",      emoji:"🏀", svg:ICONS.dribble, iconLeft:false, unit:"sec",  higherBetter:false, decimals:1 },
+  { key:"cardio",   label:"15-Lap Shuttle",  sub:"Stamina",      emoji:"🏃", svg:ICONS.cardio,  iconLeft:true,  unit:"sec",  higherBetter:false, decimals:1 },
+  { key:"passing",  label:"Moving Pass Test",sub:"Coordination", emoji:"🙌", svg:ICONS.pass,    iconLeft:true,  unit:"/16",  higherBetter:true,  decimals:0 },
 ];
 
 // Default scoring standards for a typical high-school varsity team.
@@ -1062,9 +1062,18 @@ function onRawChange(pid, periodIdx, key, value, inputEl) {
   const team = getTeam();
   const p = team.players.find(p => p.id === pid);
   if (!p) return;
+  const metric = METRICS.find(m => m.key === key);
   const trimmed = String(value).trim();
-  // Store raw measurement (empty allowed = no data)
-  p.scores[periodIdx][key] = trimmed === "" ? "" : parseFloat(trimmed);
+  let stored = "";
+  if (trimmed !== "") {
+    const num = parseFloat(trimmed);
+    if (!isNaN(num)) {
+      stored = (metric && metric.decimals === 0) ? Math.round(num) : num;
+    } else {
+      stored = trimmed; // keep raw string so the bad-input warning works
+    }
+  }
+  p.scores[periodIdx][key] = stored;
   // Live-update the converted score pill
   const pill = document.getElementById(`pill-${pid}-${periodIdx}-${key}`);
   if (pill) {
@@ -1506,6 +1515,8 @@ function renderStandards() {
   const list = document.getElementById("standardsList");
   list.innerHTML = METRICS.map(m => {
     const s = std[m.key] || {worst:0,best:10};
+    const step = m.decimals === 0 ? "1" : "0.1";
+    const inputAttr = m.decimals === 0 ? `step="1" inputmode="numeric"` : `step="${step}"`;
     return `<div class="player-edit-card" style="padding:10px 12px;margin-bottom:8px">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
         <span style="font-size:13px;font-weight:700;color:var(--navy)">${m.emoji} ${m.label}</span>
@@ -1513,10 +1524,10 @@ function renderStandards() {
       </div>
       <div class="field-row" style="margin-bottom:0">
         <label style="min-width:auto;font-size:11px">Score 1 (entry)</label>
-        <input type="number" step="0.1" class="text-input small" style="max-width:90px" value="${s.worst}"
+        <input type="number" ${inputAttr} class="text-input small" style="max-width:90px" value="${s.worst}"
           oninput="onStandardChange('${m.key}','worst',this.value)">
         <label style="min-width:auto;font-size:11px;margin-left:6px">Score 10 (elite)</label>
-        <input type="number" step="0.1" class="text-input small" style="max-width:90px" value="${s.best}"
+        <input type="number" ${inputAttr} class="text-input small" style="max-width:90px" value="${s.best}"
           oninput="onStandardChange('${m.key}','best',this.value)">
         <span style="font-size:10px;color:var(--gray-light)">${m.unit}</span>
       </div>
@@ -1536,7 +1547,7 @@ function renderStandardsPreview() {
       const s = std[m.key] || {worst:0,best:10};
       // invert score→raw: raw = worst + (score-1)/9 * (best-worst)
       const raw = s.worst + (t - 1) / 9 * (s.best - s.worst);
-      html += `<td>${raw.toFixed(1)}</td>`;
+      html += `<td>${raw.toFixed(m.decimals != null ? m.decimals : 1)}</td>`;
     });
     html += `</tr>`;
   }
@@ -1548,7 +1559,8 @@ function onStandardChange(key, which, value) {
   if (!state.standards) state.standards = makeDefaultStandards();
   const v = parseFloat(value);
   if (isNaN(v)) return;
-  state.standards[key][which] = v;
+  const metric = METRICS.find(m => m.key === key);
+  state.standards[key][which] = (metric && metric.decimals === 0) ? Math.round(v) : v;
   renderStandardsPreview();
   persist();
 }
@@ -1633,21 +1645,26 @@ function renderPlayerEditList() {
           <tr><th>Metric</th>${team.periods.map(per => `<th>${escapeHTML(per)}</th>`).join("")}</tr>
         </thead>
         <tbody>
-          ${METRICS.map(m => `
+          ${METRICS.map(m => {
+            const step = m.decimals === 0 ? "1" : "0.1";
+            const inputAttr = m.decimals === 0 ? `min="0" step="1" inputmode="numeric"` : `step="${step}"`;
+            return `
             <tr>
               <td>${m.emoji} ${m.label}<span class="metric-sub">${m.sub} · ${m.unit}${m.higherBetter?' ↑':' ↓'}</span></td>
               ${p.scores.map((s, idx) => {
                 const sc = rawToScore(s[m.key], m.key);
+                const v = s[m.key];
+                const display = (v != null && v !== "") ? (m.decimals === 0 ? Math.round(v) : v) : "";
                 return `<td>
-                  <input type="number" step="0.1" class="raw-input"
-                    value="${s[m.key]!=null && s[m.key]!=='' ? s[m.key] : ''}"
+                  <input type="number" ${inputAttr} class="raw-input"
+                    value="${display}"
                     placeholder="—"
                     oninput="onRawChange('${p.id}', ${idx}, '${m.key}', this.value, this)">
                   <span class="score-pill" id="pill-${p.id}-${idx}-${m.key}">${sc>0?sc.toFixed(1):'–'}</span>
                 </td>`;
               }).join("")}
             </tr>
-          `).join("")}
+          `;}).join("")}
         </tbody>
       </table>
     </div>
