@@ -740,7 +740,7 @@ const METRICS = [
   { key:"shooting", label:"Spot Shooting",   sub:"Accuracy",     emoji:"🎯", svg:ICONS.shoot,   iconLeft:false, unit:"/20",  higherBetter:true  },
   { key:"dribble",  label:"Obstacle Dribble",sub:"Control",      emoji:"🏀", svg:ICONS.dribble, iconLeft:false, unit:"sec",  higherBetter:false },
   { key:"cardio",   label:"15-Lap Shuttle",  sub:"Stamina",      emoji:"🏃", svg:ICONS.cardio,  iconLeft:true,  unit:"sec",  higherBetter:false },
-  { key:"passing",  label:"Passing Test",    sub:"Coordination", emoji:"🙌", svg:ICONS.pass,    iconLeft:true,  unit:"/10",  higherBetter:true  },
+  { key:"passing",  label:"Moving Pass Test", sub:"Coordination", emoji:"🙌", svg:ICONS.pass,    iconLeft:true,  unit:"/16",  higherBetter:true  },
 ];
 
 // Default scoring standards for a typical high-school varsity team.
@@ -752,8 +752,8 @@ function makeDefaultStandards() {
     agility:  { worst: 14,  best: 9  },   // sec, lower better
     shooting: { worst: 5,   best: 18 },   // makes out of 20
     dribble:  { worst: 18,  best: 11 },   // sec, lower better
-    cardio:   { worst: 100, best: 62 },   // sec for 15 laps, lower better
-    passing:  { worst: 3,   best: 10 },   // makes out of 10
+    cardio:   { worst: 62,  best: 40 },   // sec for 15 laps × 15m sideline-to-sideline, lower better
+    passing:  { worst: 4,   best: 14 },   // makes out of ~16 attempts (moving passing), higher better
   };
 }
 
@@ -834,27 +834,29 @@ const TEST_PROTOCOLS = {
   },
   cardio: {
     title: "15 趟折返跑 15-Lap Shuttle",
-    measure: "完成 15 趟折返跑的總秒數 (sec)。",
-    equipment: "籃球場 (端線到端線約 28 公尺)、碼錶。",
+    measure: "完成 15 趟邊線到邊線折返跑的總秒數 (sec)。",
+    equipment: "籃球場 (邊線到邊線約 15 公尺)、碼錶、兩條邊線標記。",
     steps: [
-      "起點設於底線,聽口令出發。",
-      "全速跑至對面底線並用腳踩線,折返算 1 趟。",
-      "連續完成 15 趟 (來回共 15 段),每次折返須踩線。",
+      "起點設於一側邊線,聽口令出發。",
+      "全速跑至對面邊線 (約 15 公尺) 並用腳踩線,折返算 1 趟。",
+      "連續完成 15 趟 (單程 15 公尺 × 15 段),每次折返須踩線。",
       "全程不可中斷,計時至第 15 趟踩線結束。"
     ],
-    note: "數值越低 (越快) 越好。測耐力與反覆衝刺能力,建議充分熱身後施測。"
+    note: "距離已改為邊線到邊線 15 公尺 (原為端線 28 公尺),標準秒數已同步下修。數值越低 (越快) 越好;距離較短,轉身與變向頻繁,著重反覆加減速能力。"
   },
   passing: {
-    title: "傳球準度測試 Passing Test",
-    measure: "對牆面目標區傳球,記錄命中數 (滿分 10 球)。",
-    equipment: "籃球、牆面目標 (貼出約 50×50 公分方框,中心離地約 1 公尺)。",
+    title: "移動中傳球測驗 Moving Pass Test",
+    measure: "邊運球移動邊向目標傳球,記錄命中數 (滿分 16 球)。",
+    equipment: "籃球、牆面 2 個目標框 (各約 50×50 公分,中心離地約 1 公尺,間隔約 5 公尺)、地面標記運球路線與 8 個傳球點、碼錶 (選用)。",
     steps: [
-      "球員站於距牆約 3 公尺處。",
-      "以胸前傳球 (或依隊規) 瞄準牆上目標框,共傳 10 球。",
-      "球進入目標框內算 1 次命中。",
-      "記錄總命中數 (0–10)。"
+      "沿牆面前方約 3 公尺處,平行劃出一條長約 10 公尺的運球路線,並標記 8 個傳球點 (每點間隔約 1.2 公尺)。",
+      "球員自起點開始運球前進,行進間不可停球。",
+      "每經過一個傳球點,須在移動中完成一次傳球 (胸前傳或擊地傳) 瞄準牆上目標框。",
+      "傳球後立即接回反彈球並繼續運球前進至下一點。",
+      "去程 8 點傳 8 球,折返回程再傳 8 球,共 16 球。",
+      "球進入目標框內 (或框線上) 算 1 次命中,記錄總命中數 (0–16)。"
     ],
-    note: "數值越高越好。可加入接反彈球後再傳,以測協調與節奏。"
+    note: "由靜態定點改為移動中傳球,更貼近實戰。數值越高越好;強調運球→傳球的銜接、移動中的出手準度與節奏。失球須回到失球點繼續,不另計時但須全程不間斷。"
   }
 };
 
@@ -899,20 +901,20 @@ function makeSampleData() {
         periods:["2024 H2","2025 H1","2025 H2","2026 H1"],
         players:[
           { id:"p1", name:"John Smith", position:"SG", scores:[
-            {jump:44, agility:13.0, shooting:8,  dribble:16.5, cardio:92, passing:5},
-            {jump:52, agility:12.2, shooting:11, dribble:15.0, cardio:84, passing:6},
-            {jump:58, agility:11.6, shooting:13, dribble:14.0, cardio:78, passing:8},
-            {jump:62, agility:11.0, shooting:15, dribble:13.2, cardio:74, passing:9}]},
+            {jump:44, agility:13.0, shooting:8,  dribble:16.5, cardio:57, passing:6},
+            {jump:52, agility:12.2, shooting:11, dribble:15.0, cardio:52, passing:8},
+            {jump:58, agility:11.6, shooting:13, dribble:14.0, cardio:48, passing:11},
+            {jump:62, agility:11.0, shooting:15, dribble:13.2, cardio:45, passing:13}]},
           { id:"p2", name:"Mike Davis", position:"PF", scores:[
-            {jump:40, agility:13.4, shooting:7,  dribble:17.0, cardio:96, passing:4},
-            {jump:44, agility:12.6, shooting:9,  dribble:16.0, cardio:90, passing:6},
-            {jump:48, agility:12.0, shooting:11, dribble:15.2, cardio:85, passing:7},
-            {jump:52, agility:11.6, shooting:12, dribble:14.6, cardio:81, passing:8}]},
+            {jump:40, agility:13.4, shooting:7,  dribble:17.0, cardio:60, passing:5},
+            {jump:44, agility:12.6, shooting:9,  dribble:16.0, cardio:56, passing:7},
+            {jump:48, agility:12.0, shooting:11, dribble:15.2, cardio:52, passing:9},
+            {jump:52, agility:11.6, shooting:12, dribble:14.6, cardio:50, passing:11}]},
           { id:"p3", name:"Chris Lee", position:"PG", scores:[
-            {jump:54, agility:11.8, shooting:11, dribble:14.2, cardio:80, passing:8},
-            {jump:60, agility:11.2, shooting:13, dribble:13.4, cardio:74, passing:9},
-            {jump:64, agility:10.6, shooting:14, dribble:12.8, cardio:70, passing:9},
-            {jump:67, agility:10.2, shooting:16, dribble:12.2, cardio:66, passing:10}]},
+            {jump:54, agility:11.8, shooting:11, dribble:14.2, cardio:50, passing:10},
+            {jump:60, agility:11.2, shooting:13, dribble:13.4, cardio:46, passing:12},
+            {jump:64, agility:10.6, shooting:14, dribble:12.8, cardio:43, passing:13},
+            {jump:67, agility:10.2, shooting:16, dribble:12.2, cardio:41, passing:14}]},
         ]
       }
     ],
