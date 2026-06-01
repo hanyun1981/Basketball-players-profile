@@ -547,7 +547,7 @@
 <!-- ============ Firebase setup (module) ============ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, doc, setDoc, onSnapshot, getDoc, initializeFirestore, persistentLocalCache, persistentMultipleTabManager }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -603,10 +603,38 @@ window.firebaseAPI = {
 
   async signIn() {
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    // Detect in-app browsers (Facebook / LINE / Instagram / TikTok WebView etc.)
+    // These embedded WebViews are blocked by Google's OAuth policy.
+    const ua = navigator.userAgent || "";
+    const inAppRe = /(FBAN|FBAV|FB_IAB|FBIOS|Instagram|Line\/|LIFF|MicroMessenger|Twitter|TikTok|MQQBrowser|Snapchat|EdgA|wv\)|; wv|GSA\/)/i;
+    const isInApp = inAppRe.test(ua);
+    if (isInApp) {
+      const err = new Error("IN_APP_BROWSER");
+      err.code = "auth/in-app-browser";
+      throw err;
+    }
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
     try {
-      await signInWithPopup(auth, provider);
+      if (isMobile) {
+        // Redirect is more reliable on phones than popups
+        await signInWithRedirect(auth, provider);
+        // Control returns after the page redirects back; getRedirectResult runs on init.
+      } else {
+        await signInWithPopup(auth, provider);
+      }
     } catch (err) {
       throw err;
+    }
+  },
+
+  // Call once after Firebase init to finish a redirect-based sign-in flow.
+  async consumeRedirectResult() {
+    try {
+      await getRedirectResult(auth);
+    } catch (err) {
+      console.warn("Redirect result error:", err);
+      window.appOnAuthError && window.appOnAuthError(err);
     }
   },
 
@@ -1765,6 +1793,27 @@ function showApp() {
 function showLogin() {
   document.getElementById("loginOverlay").classList.remove("hidden");
   document.getElementById("appContainer").style.display = "none";
+  // Pre-warn users in in-app browsers BEFORE they click Sign in
+  const ua = navigator.userAgent || "";
+  const inAppRe = /(FBAN|FBAV|FB_IAB|FBIOS|Instagram|Line\/|LIFF|MicroMessenger|Twitter|TikTok|MQQBrowser|Snapchat|EdgA|wv\)|; wv|GSA\/)/i;
+  if (inAppRe.test(ua)) {
+    const errEl = document.getElementById("loginError");
+    errEl.innerHTML = renderInAppGuidance();
+    errEl.classList.remove("hidden");
+    const btn = document.getElementById("copyUrlBtn");
+    if (btn) {
+      btn.addEventListener("click", async () => {
+        const url = window.location.href;
+        try { await navigator.clipboard.writeText(url); }
+        catch (e) {
+          const ta = document.createElement("textarea");
+          ta.value = url; document.body.appendChild(ta);
+          ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
+        }
+        document.getElementById("copyUrlMsg").style.display = "block";
+      });
+    }
+  }
 }
 function showConfigNeeded() {
   document.getElementById("configOverlay").classList.remove("hidden");
@@ -1815,24 +1864,94 @@ function handleAuthChange(user) {
 }
 
 // Wire up buttons
+function showLoginError(htmlContent) {
+  const errEl = document.getElementById("loginError");
+  errEl.innerHTML = htmlContent;
+  errEl.classList.remove("hidden");
+}
+
+function renderInAppGuidance() {
+  const url = window.location.href;
+  const ua = navigator.userAgent || "";
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+  let instructions;
+  if (isIOS) {
+    instructions = `<b>請改用 Safari 開啟此網頁:</b><br>
+      1. 點下方 <b>📋 複製網址</b><br>
+      2. 開啟 <b>Safari</b> App<br>
+      3. 在網址列貼上並前往`;
+  } else if (isAndroid) {
+    instructions = `<b>請改用 Chrome 開啟此網頁:</b><br>
+      1. 點此頁面右上角選單(⋮ 或 …)<br>
+      2. 選擇 <b>「在瀏覽器中開啟」</b> 或 <b>「在 Chrome 中開啟」</b><br>
+      或: 點下方按鈕複製網址,再到 <b>Chrome</b> 貼上`;
+  } else {
+    instructions = `<b>請改用 Chrome、Safari 或 Firefox 開啟此網頁。</b>`;
+  }
+  return `<div style="font-size:12px;line-height:1.6">
+    <b>⚠️ Google 政策不允許從目前的瀏覽器登入</b><br>
+    <span style="color:#92400e">您正在使用內嵌瀏覽器 (例如 LINE、Facebook、Instagram、微信 內建瀏覽器),Google 拒絕在這類環境登入。</span>
+    <div style="margin-top:8px;padding:8px 10px;background:#fff;border-radius:6px;border:1px solid #fde68a">
+      ${instructions}
+    </div>
+    <button id="copyUrlBtn" class="primary-btn" style="margin-top:8px;width:100%;padding:8px">📋 複製網址</button>
+    <div id="copyUrlMsg" style="font-size:11px;color:#10b981;font-weight:700;margin-top:4px;display:none">✓ 已複製! 請開啟瀏覽器並貼上</div>
+  </div>`;
+}
+
 document.getElementById("googleSignInBtn").addEventListener("click", async () => {
   const errEl = document.getElementById("loginError");
   errEl.classList.add("hidden");
+  errEl.innerHTML = "";
   try {
     await window.firebaseAPI.signIn();
   } catch (err) {
+    if (err.code === "auth/in-app-browser") {
+      showLoginError(renderInAppGuidance());
+      const btn = document.getElementById("copyUrlBtn");
+      if (btn) {
+        btn.addEventListener("click", async () => {
+          const url = window.location.href;
+          try {
+            await navigator.clipboard.writeText(url);
+            document.getElementById("copyUrlMsg").style.display = "block";
+          } catch (e) {
+            // Fallback: select-able text
+            const ta = document.createElement("textarea");
+            ta.value = url; document.body.appendChild(ta);
+            ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
+            document.getElementById("copyUrlMsg").style.display = "block";
+          }
+        });
+      }
+      return;
+    }
     let msg = err.message || String(err);
     if (err.code === "auth/unauthorized-domain") {
-      msg = "This domain is not in the authorized domains list. Add it in Firebase Console → Authentication → Settings → Authorized domains.";
+      msg = "此網域未授權登入,請聯絡管理者在 Firebase Console 加入授權網域。";
     } else if (err.code === "auth/popup-blocked") {
-      msg = "Sign-in popup was blocked. Please allow popups for this site.";
-    } else if (err.code === "auth/popup-closed-by-user") {
-      msg = "Sign-in was cancelled.";
+      msg = "瀏覽器封鎖了登入彈窗。請允許彈窗後重試,或改用手機/重新整理頁面。";
+    } else if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
+      msg = "登入已取消。";
+    } else if (err.code === "auth/network-request-failed") {
+      msg = "網路連線失敗,請確認網路後重試。";
+    } else if (/disallowed_useragent|disallowed.useragent/i.test(msg)) {
+      showLoginError(renderInAppGuidance());
+      return;
     }
-    errEl.textContent = "Sign-in failed: " + msg;
-    errEl.classList.remove("hidden");
+    showLoginError("登入失敗: " + msg);
   }
 });
+
+// Errors from a redirect-based sign-in surface here.
+window.appOnAuthError = (err) => {
+  if (err && /disallowed_useragent|disallowed.useragent/i.test(err.message || "")) {
+    showLoginError(renderInAppGuidance());
+  } else if (err && err.code === "auth/unauthorized-domain") {
+    showLoginError("登入失敗: 此網域未授權。請聯絡管理者。");
+  }
+};
 
 document.getElementById("signOutBtn").addEventListener("click", async () => {
   if (!confirm("Sign out?")) return;
@@ -1869,7 +1988,12 @@ function bootFirebase() {
   if (bootHandled) return;
   bootHandled = true;
   if (window.firebaseAPI.isConfigured()) {
+    // Subscribe first so auth state change after redirect is captured
     window.firebaseAPI.onAuthChange(handleAuthChange);
+    // Then complete any pending mobile-redirect sign-in flow
+    if (window.firebaseAPI.consumeRedirectResult) {
+      window.firebaseAPI.consumeRedirectResult();
+    }
   } else {
     showConfigNeeded();
   }
