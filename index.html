@@ -608,27 +608,33 @@ window.firebaseAPI = {
   async signIn() {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
+    const ua = navigator.userAgent || "";
     // Detect in-app browsers (Facebook / LINE / Instagram / TikTok WebView etc.)
     // These embedded WebViews are blocked by Google's OAuth policy.
-    const ua = navigator.userAgent || "";
     const inAppRe = /(FBAN|FBAV|FB_IAB|FBIOS|Instagram|Line\/|LIFF|MicroMessenger|Twitter|TikTok|MQQBrowser|Snapchat|EdgA|wv\)|; wv|GSA\/)/i;
-    const isInApp = inAppRe.test(ua);
-    if (isInApp) {
+    if (inAppRe.test(ua)) {
       const err = new Error("IN_APP_BROWSER");
       err.code = "auth/in-app-browser";
       throw err;
     }
-    // Try popup first on EVERY device. Popup is generally more reliable than redirect
-    // on GitHub Pages (redirect requires cross-origin storage to firebaseapp.com
-    // which modern browsers' third-party-cookie partitioning often blocks).
+    // Detect Safari (NOT Chrome/Firefox/Edge on iOS, which all use Apple's WebKit
+    // but advertise their own engine string). Safari has ITP that blocks the
+    // postMessage step of signInWithPopup with firebaseapp.com, so we must use
+    // signInWithRedirect on Safari (mobile or desktop).
+    const isSafari = /Safari/.test(ua)
+      && !/Chrome|CriOS|FxiOS|EdgiOS|EdgA|OPR|Opera/.test(ua);
+    if (isSafari) {
+      // Redirect uses full-page navigation, not iframes/postMessage; ITP-safe.
+      await signInWithRedirect(auth, provider);
+      return;
+    }
+    // Non-Safari: popup is generally fine. If popup fails for environment reasons,
+    // fall back to redirect.
     try {
       await signInWithPopup(auth, provider);
     } catch (err) {
-      // If popup itself is blocked or operation-not-supported (some mobile browsers),
-      // fall back to redirect as a last resort.
-      const code = err && err.code;
       const fallbackCodes = ["auth/popup-blocked", "auth/operation-not-supported-in-this-environment", "auth/web-storage-unsupported"];
-      if (fallbackCodes.includes(code)) {
+      if (fallbackCodes.includes(err && err.code)) {
         await signInWithRedirect(auth, provider);
         return;
       }
@@ -1808,12 +1814,14 @@ function showLogin() {
   const inAppRe = /(FBAN|FBAV|FB_IAB|FBIOS|Instagram|Line\/|LIFF|MicroMessenger|Twitter|TikTok|MQQBrowser|Snapchat|EdgA|wv\)|; wv|GSA\/)/i;
   const isInApp = inAppRe.test(ua);
   const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+  const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS|EdgA|OPR|Opera/.test(ua);
   const diag = document.getElementById("diagInfo");
   if (diag) {
     diag.innerHTML = `
 <b>URL:</b> ${escapeHTML(window.location.href)}<br>
 <b>Hostname:</b> ${escapeHTML(window.location.hostname)}<br>
-<b>Mobile:</b> ${isMobile} · <b>In-App:</b> ${isInApp}<br>
+<b>Mobile:</b> ${isMobile} · <b>Safari:</b> ${isSafari} · <b>In-App:</b> ${isInApp}<br>
+<b>Sign-in method:</b> ${isInApp ? "blocked (in-app)" : isSafari ? "redirect (Safari)" : "popup"}<br>
 <b>Cookies:</b> ${navigator.cookieEnabled} · <b>Online:</b> ${navigator.onLine}<br>
 <b>UA:</b> ${escapeHTML(ua.slice(0, 200))}`;
   }
