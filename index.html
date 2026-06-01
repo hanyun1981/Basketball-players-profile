@@ -410,6 +410,10 @@
     </button>
     <div class="login-foot">By signing in, your team data will be saved to your private Firebase account.</div>
     <div class="login-error hidden" id="loginError"></div>
+    <details style="margin-top:14px;font-size:10.5px;color:var(--gray);text-align:left">
+      <summary style="cursor:pointer;font-weight:700;color:var(--gray)">🔍 診斷資訊 (登入失敗時請展開)</summary>
+      <div id="diagInfo" style="margin-top:6px;padding:8px 10px;background:#f3f4f6;border-radius:6px;font-family:monospace;font-size:10px;line-height:1.5;word-break:break-all">Loading…</div>
+    </details>
   </div>
 </div>
 
@@ -614,16 +618,20 @@ window.firebaseAPI = {
       err.code = "auth/in-app-browser";
       throw err;
     }
-    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+    // Try popup first on EVERY device. Popup is generally more reliable than redirect
+    // on GitHub Pages (redirect requires cross-origin storage to firebaseapp.com
+    // which modern browsers' third-party-cookie partitioning often blocks).
     try {
-      if (isMobile) {
-        // Redirect is more reliable on phones than popups
-        await signInWithRedirect(auth, provider);
-        // Control returns after the page redirects back; getRedirectResult runs on init.
-      } else {
-        await signInWithPopup(auth, provider);
-      }
+      await signInWithPopup(auth, provider);
     } catch (err) {
+      // If popup itself is blocked or operation-not-supported (some mobile browsers),
+      // fall back to redirect as a last resort.
+      const code = err && err.code;
+      const fallbackCodes = ["auth/popup-blocked", "auth/operation-not-supported-in-this-environment", "auth/web-storage-unsupported"];
+      if (fallbackCodes.includes(code)) {
+        await signInWithRedirect(auth, provider);
+        return;
+      }
       throw err;
     }
   },
@@ -631,10 +639,12 @@ window.firebaseAPI = {
   // Call once after Firebase init to finish a redirect-based sign-in flow.
   async consumeRedirectResult() {
     try {
-      await getRedirectResult(auth);
+      const res = await getRedirectResult(auth);
+      return res;
     } catch (err) {
       console.warn("Redirect result error:", err);
       window.appOnAuthError && window.appOnAuthError(err);
+      return null;
     }
   },
 
@@ -1793,10 +1803,22 @@ function showApp() {
 function showLogin() {
   document.getElementById("loginOverlay").classList.remove("hidden");
   document.getElementById("appContainer").style.display = "none";
-  // Pre-warn users in in-app browsers BEFORE they click Sign in
+  // Diagnostics panel
   const ua = navigator.userAgent || "";
   const inAppRe = /(FBAN|FBAV|FB_IAB|FBIOS|Instagram|Line\/|LIFF|MicroMessenger|Twitter|TikTok|MQQBrowser|Snapchat|EdgA|wv\)|; wv|GSA\/)/i;
-  if (inAppRe.test(ua)) {
+  const isInApp = inAppRe.test(ua);
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+  const diag = document.getElementById("diagInfo");
+  if (diag) {
+    diag.innerHTML = `
+<b>URL:</b> ${escapeHTML(window.location.href)}<br>
+<b>Hostname:</b> ${escapeHTML(window.location.hostname)}<br>
+<b>Mobile:</b> ${isMobile} · <b>In-App:</b> ${isInApp}<br>
+<b>Cookies:</b> ${navigator.cookieEnabled} · <b>Online:</b> ${navigator.onLine}<br>
+<b>UA:</b> ${escapeHTML(ua.slice(0, 200))}`;
+  }
+  // Pre-warn users in in-app browsers BEFORE they click Sign in
+  if (isInApp) {
     const errEl = document.getElementById("loginError");
     errEl.innerHTML = renderInAppGuidance();
     errEl.classList.remove("hidden");
@@ -1815,6 +1837,13 @@ function showLogin() {
     }
   }
 }
+
+function diagLog(msg) {
+  const diag = document.getElementById("diagInfo");
+  if (!diag) return;
+  const t = new Date().toLocaleTimeString();
+  diag.innerHTML += `<br><span style="color:#1e3a5f">[${t}] ${escapeHTML(msg)}</span>`;
+}
 function showConfigNeeded() {
   document.getElementById("configOverlay").classList.remove("hidden");
   document.getElementById("loginOverlay").classList.add("hidden");
@@ -1822,6 +1851,9 @@ function showConfigNeeded() {
 }
 
 function handleAuthChange(user) {
+  if (typeof diagLog === "function") {
+    diagLog(`Auth state: ${user ? "signed in as " + (user.email || user.uid) : "signed out"}`);
+  }
   if (!user) {
     authedUser = null;
     userRole = "viewer";
@@ -1904,9 +1936,12 @@ document.getElementById("googleSignInBtn").addEventListener("click", async () =>
   const errEl = document.getElementById("loginError");
   errEl.classList.add("hidden");
   errEl.innerHTML = "";
+  diagLog("Sign in clicked");
   try {
     await window.firebaseAPI.signIn();
+    diagLog("signIn() returned without error");
   } catch (err) {
+    diagLog(`signIn error: ${err.code || ''} ${err.message || ''}`.slice(0, 200));
     if (err.code === "auth/in-app-browser") {
       showLoginError(renderInAppGuidance());
       const btn = document.getElementById("copyUrlBtn");
@@ -1992,7 +2027,9 @@ function bootFirebase() {
     window.firebaseAPI.onAuthChange(handleAuthChange);
     // Then complete any pending mobile-redirect sign-in flow
     if (window.firebaseAPI.consumeRedirectResult) {
-      window.firebaseAPI.consumeRedirectResult();
+      window.firebaseAPI.consumeRedirectResult().then(r => {
+        if (typeof diagLog === "function") diagLog(`Redirect result: ${r ? "user=" + (r.user && r.user.email) : "none"}`);
+      });
     }
   } else {
     showConfigNeeded();
