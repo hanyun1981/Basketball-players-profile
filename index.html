@@ -1520,7 +1520,7 @@ function renderRadar() {
   });
   METRICS.forEach((m, i) => {
     const angle = i * step;
-    const labelP = polar(cx, cy, maxR + 58, angle);
+    const labelP = polar(cx, cy, maxR + 42, angle);
     const isTop = i === 0;
     const isBottom = i === 3;
     let textX, textAnchor, iconX, iconY;
@@ -1529,8 +1529,8 @@ function renderRadar() {
     else if (m.iconLeft) { iconX = labelP.x - 28; iconY = labelP.y - 10; textX = labelP.x - 6; textAnchor = "start"; }
     else { iconX = labelP.x + 8; iconY = labelP.y - 10; textX = labelP.x + 6; textAnchor = "end"; }
     svg += `<g transform="translate(${iconX},${iconY})">${m.svg}</g>`;
-    svg += `<text x="${textX}" y="${labelP.y - 1}" text-anchor="${textAnchor}" font-size="11.5" font-weight="700" fill="#1e3a5f" font-family="'Inter',sans-serif">${m.label}</text>`;
-    svg += `<text x="${textX}" y="${labelP.y + 12}" text-anchor="${textAnchor}" font-size="9.5" fill="#6b7280" font-family="'Inter',sans-serif">(${m.sub})</text>`;
+    svg += `<text x="${textX}" y="${labelP.y - 1}" text-anchor="${textAnchor}" font-size="13.5" font-weight="700" fill="#1e3a5f" font-family="'Inter',sans-serif">${m.label}</text>`;
+    svg += `<text x="${textX}" y="${labelP.y + 13}" text-anchor="${textAnchor}" font-size="11.5" fill="#6b7280" font-family="'Inter',sans-serif">(${m.sub})</text>`;
   });
   svg += `</svg></div>`;
   wrap.innerHTML = svg;
