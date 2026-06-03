@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Player Performance Portfolio</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+<!-- Google Identity Services for in-page sign-in (ITP-safe on iPhone Safari) -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root {
     --navy: #1e3a5f;
@@ -408,6 +410,7 @@
       </svg>
       Sign in with Google
     </button>
+    <div id="gisButtonHost" class="hidden" style="margin-top:8px;display:flex;justify-content:center"></div>
     <div class="login-foot">By signing in, your team data will be saved to your private Firebase account.</div>
     <div class="login-error hidden" id="loginError"></div>
     <details style="margin-top:14px;font-size:10.5px;color:var(--gray);text-align:left">
@@ -551,7 +554,7 @@
 <!-- ============ Firebase setup (module) ============ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged }
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signInWithCredential, signOut, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, doc, setDoc, onSnapshot, getDoc, initializeFirestore, persistentLocalCache, persistentMultipleTabManager }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -569,6 +572,16 @@ const FIREBASE_CONFIG = {
   appId: "1:684475318183:web:de8b9ad4adec63f2f2c082",
   measurementId: "G-M5Q23HY02S"
 };
+// =====================================================
+// 👇 GOOGLE OAUTH CLIENT ID — used for in-page Google Sign-In (works on
+//    iPhone Safari, bypasses Firebase's firebaseapp.com redirect entirely).
+//    Get this from: Google Cloud Console → APIs & Services → Credentials →
+//    Look for "Web client (auto created by Google Service)" or create a new
+//    "OAuth 2.0 Client IDs" of type "Web application", then copy the Client ID.
+//    Also add your site URL to "Authorized JavaScript origins".
+//    See README for full step-by-step instructions.
+// =====================================================
+const GOOGLE_CLIENT_ID = "PASTE_YOUR_GOOGLE_OAUTH_WEB_CLIENT_ID_HERE.apps.googleusercontent.com";
 // =====================================================
 
 let app, auth, db;
@@ -617,15 +630,17 @@ window.firebaseAPI = {
       err.code = "auth/in-app-browser";
       throw err;
     }
-    // Detect Safari (NOT Chrome/Firefox/Edge on iOS, which all use Apple's WebKit
-    // but advertise their own engine string). Safari has ITP that blocks the
-    // postMessage step of signInWithPopup with firebaseapp.com, so we must use
-    // signInWithRedirect on Safari (mobile or desktop).
+    // Detect Safari (NOT Chrome/Firefox/Edge on iOS). Safari's ITP blocks the
+    // postMessage step of signInWithPopup AND the storage step of signInWithRedirect
+    // when used with the default firebaseapp.com authDomain on GitHub Pages.
+    // For Safari we use Google Identity Services (GIS) directly — it returns
+    // an ID token in-page (no firebaseapp.com round-trip) which we then hand
+    // to Firebase via signInWithCredential.
     const isSafari = /Safari/.test(ua)
       && !/Chrome|CriOS|FxiOS|EdgiOS|EdgA|OPR|Opera/.test(ua);
     if (isSafari) {
-      // Redirect uses full-page navigation, not iframes/postMessage; ITP-safe.
-      await signInWithRedirect(auth, provider);
+      window.diagLog && window.diagLog("Safari → using Google Identity Services (in-page)");
+      await signInWithGIS();
       return;
     }
     // Non-Safari: popup is generally fine. If popup fails for environment reasons,
@@ -645,9 +660,12 @@ window.firebaseAPI = {
   // Call once after Firebase init to finish a redirect-based sign-in flow.
   async consumeRedirectResult() {
     try {
+      window.diagLog && window.diagLog("Calling getRedirectResult()…");
       const res = await getRedirectResult(auth);
+      window.diagLog && window.diagLog("getRedirectResult returned: " + (res ? "user=" + (res.user && res.user.email) : "null (no pending redirect)"));
       return res;
     } catch (err) {
+      window.diagLog && window.diagLog("getRedirectResult threw: " + (err && err.code) + " " + (err && err.message || "").slice(0,120));
       console.warn("Redirect result error:", err);
       window.appOnAuthError && window.appOnAuthError(err);
       return null;
@@ -722,6 +740,117 @@ window.firebaseAPI = {
     }
   },
 };
+
+// =====================================================
+// Google Identity Services (GIS) — used for Safari sign-in.
+// Returns an ID token entirely in-page (no firebaseapp.com round-trip),
+// then exchanges it for a Firebase auth session via signInWithCredential.
+// =====================================================
+async function waitForGIS(maxMs = 6000) {
+  const start = Date.now();
+  while (Date.now() - start < maxMs) {
+    if (window.google && window.google.accounts && window.google.accounts.id) return true;
+    await new Promise(r => setTimeout(r, 100));
+  }
+  return false;
+}
+
+async function signInWithGIS() {
+  if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.startsWith("PASTE_")) {
+    const err = new Error("GIS not configured");
+    err.code = "auth/gis-not-configured";
+    throw err;
+  }
+  const ready = await waitForGIS();
+  if (!ready) {
+    const err = new Error("Google Identity Services failed to load");
+    err.code = "auth/gis-load-failed";
+    throw err;
+  }
+  window.diagLog && window.diagLog("GIS loaded, requesting ID token…");
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    try {
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        ux_mode: "popup",
+        auto_select: false,
+        cancel_on_tap_outside: false,
+        callback: async (response) => {
+          if (settled) return;
+          if (!response || !response.credential) {
+            window.diagLog && window.diagLog("GIS callback: no credential returned");
+            settled = true;
+            const e = new Error("No credential from Google");
+            e.code = "auth/gis-no-credential";
+            return reject(e);
+          }
+          window.diagLog && window.diagLog("GIS got ID token (length " + response.credential.length + "), exchanging with Firebase…");
+          try {
+            const cred = GoogleAuthProvider.credential(response.credential);
+            await signInWithCredential(auth, cred);
+            window.diagLog && window.diagLog("signInWithCredential SUCCESS");
+            settled = true;
+            resolve();
+          } catch (err) {
+            window.diagLog && window.diagLog("signInWithCredential failed: " + (err && err.code) + " " + (err && err.message || "").slice(0,100));
+            settled = true;
+            reject(err);
+          }
+        },
+      });
+      // Show the GIS prompt (chooser/one-tap). On iOS Safari this renders an
+      // in-page dialog hosted by accounts.google.com — same-origin to Google,
+      // no third-party storage to firebaseapp.com involved.
+      window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed && notification.isNotDisplayed()) {
+          window.diagLog && window.diagLog("GIS prompt not displayed: " + notification.getNotDisplayedReason());
+          // Fall back to the explicit "Sign in with Google" button
+          renderGISFallbackButton(resolve, reject);
+        } else if (notification.isSkippedMoment && notification.isSkippedMoment()) {
+          window.diagLog && window.diagLog("GIS prompt skipped: " + notification.getSkippedReason());
+          renderGISFallbackButton(resolve, reject);
+        } else if (notification.isDismissedMoment && notification.isDismissedMoment()) {
+          window.diagLog && window.diagLog("GIS prompt dismissed: " + notification.getDismissedReason());
+          if (!settled) {
+            settled = true;
+            const e = new Error("Sign-in cancelled");
+            e.code = "auth/cancelled";
+            reject(e);
+          }
+        }
+      });
+    } catch (e) {
+      window.diagLog && window.diagLog("GIS init/prompt threw: " + (e && e.message || e));
+      reject(e);
+    }
+  });
+}
+
+function renderGISFallbackButton(resolve, reject) {
+  // Render the explicit GIS sign-in button below the existing one
+  const host = document.getElementById("gisButtonHost");
+  if (!host) {
+    window.diagLog && window.diagLog("No gisButtonHost element to render fallback");
+    return;
+  }
+  host.innerHTML = "";
+  host.classList.remove("hidden");
+  try {
+    window.google.accounts.id.renderButton(host, {
+      type: "standard",
+      theme: "outline",
+      size: "large",
+      text: "signin_with",
+      logo_alignment: "left",
+      width: 280,
+    });
+    window.diagLog && window.diagLog("Rendered GIS fallback button");
+  } catch (e) {
+    window.diagLog && window.diagLog("renderButton failed: " + (e && e.message || e));
+  }
+}
+window.signInWithGIS = signInWithGIS;
 
 // Auto-initialize
 if (isConfigured()) {
@@ -1821,9 +1950,10 @@ function showLogin() {
 <b>URL:</b> ${escapeHTML(window.location.href)}<br>
 <b>Hostname:</b> ${escapeHTML(window.location.hostname)}<br>
 <b>Mobile:</b> ${isMobile} · <b>Safari:</b> ${isSafari} · <b>In-App:</b> ${isInApp}<br>
-<b>Sign-in method:</b> ${isInApp ? "blocked (in-app)" : isSafari ? "redirect (Safari)" : "popup"}<br>
+<b>Sign-in method:</b> ${isInApp ? "blocked (in-app)" : isSafari ? "GIS in-page (Safari)" : "popup"}<br>
 <b>Cookies:</b> ${navigator.cookieEnabled} · <b>Online:</b> ${navigator.onLine}<br>
 <b>UA:</b> ${escapeHTML(ua.slice(0, 200))}`;
+    diagReplay();
   }
   // Pre-warn users in in-app browsers BEFORE they click Sign in
   if (isInApp) {
@@ -1847,10 +1977,29 @@ function showLogin() {
 }
 
 function diagLog(msg) {
+  const t = new Date().toLocaleTimeString();
+  const entry = `[${t}] ${msg}`;
+  // Persist across page reloads (the redirect flow reloads the page)
+  try {
+    const prev = sessionStorage.getItem("diag_log") || "";
+    const next = (prev + (prev ? "\n" : "") + entry).split("\n").slice(-30).join("\n");
+    sessionStorage.setItem("diag_log", next);
+  } catch (e) {}
   const diag = document.getElementById("diagInfo");
   if (!diag) return;
-  const t = new Date().toLocaleTimeString();
-  diag.innerHTML += `<br><span style="color:#1e3a5f">[${t}] ${escapeHTML(msg)}</span>`;
+  diag.innerHTML += `<br><span style="color:#1e3a5f">${escapeHTML(entry)}</span>`;
+}
+window.diagLog = diagLog;
+
+function diagReplay() {
+  try {
+    const log = sessionStorage.getItem("diag_log");
+    if (!log) return;
+    const diag = document.getElementById("diagInfo");
+    if (!diag) return;
+    const lines = log.split("\n").map(l => `<span style="color:#7b8494">${escapeHTML(l)}</span>`).join("<br>");
+    diag.innerHTML += `<br><i style="color:#9ca3af">— previous session —</i><br>${lines}`;
+  } catch (e) {}
 }
 function showConfigNeeded() {
   document.getElementById("configOverlay").classList.remove("hidden");
@@ -1975,10 +2124,16 @@ document.getElementById("googleSignInBtn").addEventListener("click", async () =>
       msg = "此網域未授權登入,請聯絡管理者在 Firebase Console 加入授權網域。";
     } else if (err.code === "auth/popup-blocked") {
       msg = "瀏覽器封鎖了登入彈窗。請允許彈窗後重試,或改用手機/重新整理頁面。";
-    } else if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
+    } else if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request" || err.code === "auth/cancelled") {
       msg = "登入已取消。";
     } else if (err.code === "auth/network-request-failed") {
       msg = "網路連線失敗,請確認網路後重試。";
+    } else if (err.code === "auth/gis-not-configured") {
+      msg = "⚙️ 需要管理者設定 Google OAuth Client ID。請告知開發者「Safari 登入需要 GIS Client ID 尚未填入」。";
+    } else if (err.code === "auth/gis-load-failed") {
+      msg = "Google 登入元件載入失敗,請檢查網路後重試。";
+    } else if (err.code === "auth/gis-no-credential") {
+      msg = "Google 沒有回傳登入憑證,請重試。";
     } else if (/disallowed_useragent|disallowed.useragent/i.test(msg)) {
       showLoginError(renderInAppGuidance());
       return;
@@ -2035,9 +2190,7 @@ function bootFirebase() {
     window.firebaseAPI.onAuthChange(handleAuthChange);
     // Then complete any pending mobile-redirect sign-in flow
     if (window.firebaseAPI.consumeRedirectResult) {
-      window.firebaseAPI.consumeRedirectResult().then(r => {
-        if (typeof diagLog === "function") diagLog(`Redirect result: ${r ? "user=" + (r.user && r.user.email) : "none"}`);
-      });
+      window.firebaseAPI.consumeRedirectResult();
     }
   } else {
     showConfigNeeded();
