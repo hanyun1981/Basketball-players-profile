@@ -1470,17 +1470,15 @@ function renderRadar() {
   svg += `<path d="M ${vb} ${cy-150} Q ${vb-130} ${cy} ${vb} ${cy+150}" fill="none" stroke="${lc}" stroke-width="1.5" opacity="${lo}"/>`;
   svg += `<rect x="3" y="3" width="${vb-6}" height="${vb-6}" fill="none" stroke="${lc}" stroke-width="1.2" opacity="${lo*0.6}"/>`;
 
-  // Outer hex — single light fill providing the radar background.
-  const outerPts = METRICS.map((_, j) => { const p = polar(cx, cy, maxR, j*step); return `${p.x},${p.y}`; }).join(" ");
-  svg += `<polygon points="${outerPts}" fill="url(#hexLight)" stroke="#ffffff" stroke-width="2.2" opacity="1" filter="url(#hexShadow)"/>`;
-  // Concentric grid rings at every integer score (1–10): one ring per point.
-  for (let lv = 9; lv >= 1; lv--) {
+  // 10 nested hexagons — one per integer score (1–10), alternating dark/light
+  // fills to preserve the original stepped-3D look.
+  const levels = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+  levels.forEach((lv, i) => {
     const r = (lv / 10) * maxR;
     const pts = METRICS.map((_, j) => { const p = polar(cx, cy, r, j*step); return `${p.x},${p.y}`; }).join(" ");
-    // Bolder strokes at even levels (2,4,6,8) to keep readable anchor points
-    const isEven = lv % 2 === 0;
-    svg += `<polygon points="${pts}" fill="none" stroke="#ffffff" stroke-width="${isEven?1.6:0.9}" opacity="${isEven?0.85:0.55}"/>`;
-  }
+    const fill = (i % 2 === 0) ? "url(#hexDark)" : "url(#hexLight)";
+    svg += `<polygon points="${pts}" fill="${fill}" stroke="#ffffff" stroke-width="1.6" opacity="1" filter="${i===0?'url(#hexShadow)':''}"/>`;
+  });
   METRICS.forEach((_, i) => {
     const p = polar(cx, cy, maxR, i*step);
     svg += `<line x1="${cx}" y1="${cy}" x2="${p.x}" y2="${p.y}" stroke="#9ca3af" stroke-width="0.4" opacity="0.3"/>`;
