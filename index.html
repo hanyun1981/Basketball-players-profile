@@ -448,6 +448,7 @@
     </div>
     <div style="display:flex;align-items:center;gap:6px">
       <span class="sync-indicator" id="syncIndicator"><span class="dot"></span><span id="syncText">…</span></span>
+      <button class="signout-btn" id="signInBtn" style="display:none">Sign in</button>
       <button class="signout-btn" id="signOutBtn">Sign out</button>
     </div>
   </div>
@@ -679,7 +680,7 @@ window.firebaseAPI = {
   },
 
   subscribeData(callback) {
-    if (!currentUser) return;
+    // No auth gate — Firestore rules allow public read of appData.
     if (unsubscribeData) unsubscribeData();
     const ref = doc(db, "appData", "main");
     unsubscribeData = onSnapshot(ref, (snap) => {
@@ -692,7 +693,7 @@ window.firebaseAPI = {
   },
 
   subscribeRoles(callback) {
-    if (!currentUser) return;
+    // No auth gate — Firestore rules allow public read of config/roles.
     if (unsubscribeRoles) unsubscribeRoles();
     const ref = doc(db, "config", "roles");
     unsubscribeRoles = onSnapshot(ref, (snap) => {
@@ -2012,11 +2013,36 @@ function handleAuthChange(user) {
     diagLog(`Auth state: ${user ? "signed in as " + (user.email || user.uid) : "signed out"}`);
   }
   if (!user) {
+    // Signed out → public viewer mode. No login overlay, just the dashboard
+    // populated from Firestore (rules allow public read).
     authedUser = null;
     userRole = "viewer";
     editorEmails = [];
     rolesLoaded = false;
-    showLogin();
+
+    // Hide the user bar's avatar/name; show a "Sign in" button instead
+    const avatar = document.getElementById("userAvatar");
+    if (avatar) { avatar.style.backgroundImage = ""; avatar.textContent = "👤"; }
+    const userName = document.getElementById("userName");
+    if (userName) userName.textContent = "Public viewer";
+    document.getElementById("signInBtn").style.display = "";
+    document.getElementById("signOutBtn").style.display = "none";
+
+    showApp();
+    setSyncStatus("syncing");
+    renderUserRole();
+
+    // Subscribe to the public data feeds (no auth needed under the new rules)
+    window.firebaseAPI.subscribeRoles((roles) => {
+      editorEmails = (roles && Array.isArray(roles.editors)) ? roles.editors : [];
+      rolesLoaded = true;
+      computeRole();
+      renderAll();
+    });
+    window.firebaseAPI.subscribeData((data, meta) => {
+      applyRemoteState(data, meta);
+      setSyncStatus(meta && meta.fromCache ? "offline" : "synced");
+    });
     return;
   }
   authedUser = user;
@@ -2031,6 +2057,8 @@ function handleAuthChange(user) {
     avatar.textContent = initials;
   }
   document.getElementById("userName").textContent = user.displayName || user.email || "Signed in";
+  document.getElementById("signInBtn").style.display = "none";
+  document.getElementById("signOutBtn").style.display = "";
 
   showApp();
   setSyncStatus("syncing");
@@ -2154,6 +2182,12 @@ window.appOnAuthError = (err) => {
 document.getElementById("signOutBtn").addEventListener("click", async () => {
   if (!confirm("Sign out?")) return;
   await window.firebaseAPI.signOutUser();
+});
+
+// In-app "Sign in" button (shown when viewing as public/signed-out)
+document.getElementById("signInBtn").addEventListener("click", () => {
+  // Reuse the same flow as the overlay button by triggering its click
+  showLogin();
 });
 
 // Expose mutation functions for inline onclick
