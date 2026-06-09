@@ -204,6 +204,37 @@
   }
   .player-btn .pos { font-size: 10px; opacity: 0.7; margin-left: 3px; }
 
+  /* Player picker — dropdown on dashboard for compact player switching */
+  .player-picker {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: linear-gradient(135deg, var(--navy), var(--navy-light));
+    color: #fff; padding: 6px 14px 6px 16px;
+    border-radius: 20px; box-shadow: 0 2px 8px rgba(30,58,95,0.25);
+    font-size: 13px; font-weight: 700;
+    position: relative; cursor: pointer;
+  }
+  .player-picker .pp-count {
+    font-size: 10px; font-weight: 600; opacity: 0.7;
+    background: rgba(255,255,255,0.15); padding: 1px 7px;
+    border-radius: 9px;
+  }
+  .player-picker select {
+    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+    background: transparent; border: 0; outline: 0;
+    color: #fff; font: inherit; font-weight: 700;
+    padding: 0 22px 0 0; margin: 0;
+    cursor: pointer; max-width: 220px;
+    text-overflow: ellipsis;
+  }
+  .player-picker select option {
+    color: #1f2937; background: #fff; font-weight: 500;
+  }
+  .player-picker::after {
+    content: "▾"; position: absolute; right: 12px; top: 50%;
+    transform: translateY(-50%); font-size: 11px; pointer-events: none;
+    color: #fff;
+  }
+
   .empty-state {
     text-align: center; padding: 30px 20px; color: var(--gray);
     background: rgba(255,255,255,0.6); border-radius: 14px;
@@ -345,6 +376,14 @@
   }
   .raw-input:focus { border-color: var(--navy); background: #eff6ff; }
   .raw-input.bad { color: var(--red); border-color: #fecaca; }
+  .jump-cell {
+    display: grid; grid-template-columns: auto 1fr; gap: 2px 4px;
+    align-items: center;
+  }
+  .jump-lab {
+    font-size: 9px; font-weight: 700; color: var(--gray); white-space: nowrap;
+  }
+  .jump-in { padding: 2px 2px !important; font-size: 11px !important; }
   .score-pill {
     display: block; margin-top: 2px; font-size: 9.5px; font-weight: 800;
     color: #047857; text-align: center; font-variant-numeric: tabular-nums;
@@ -941,15 +980,39 @@ function rawToScore(raw, metricKey, standards) {
   const s = 1 + 9 * (v - worst) / (best - worst);
   return Math.max(0, Math.min(10, s));
 }
-// Convert a raw entry {jump:42, agility:11.5, ...} → score object {jump:7.1, ...}
+// Resolve the canonical "raw measurement" for a metric, regardless of how the
+// editor stored it. For "jump" the entry is {stand, jump} and the raw value
+// is the reach-height difference (jump − stand). For everything else the entry
+// holds the raw value directly. Legacy data where jump is a plain number is
+// also tolerated (treated as the already-computed difference).
+function getRawValue(entry, metricKey) {
+  if (!entry) return "";
+  const v = entry[metricKey];
+  if (metricKey === "jump") {
+    if (v && typeof v === "object") {
+      const s = parseFloat(v.stand);
+      const j = parseFloat(v.jump);
+      if (isNaN(s) || isNaN(j)) return "";
+      return j - s;
+    }
+    // Legacy: plain number stored before the two-input change.
+    return (v === "" || v == null) ? "" : v;
+  }
+  return (v === "" || v == null) ? "" : v;
+}
+// Convert a raw entry → score object keyed by metric (always 0–10 scores).
 function entryToScores(entry, standards) {
   const out = {};
-  METRICS.forEach(m => { out[m.key] = rawToScore(entry ? entry[m.key] : null, m.key, standards); });
+  METRICS.forEach(m => {
+    out[m.key] = rawToScore(getRawValue(entry, m.key), m.key, standards);
+  });
   return out;
 }
 function emptyEntry() {
   const e = {};
-  METRICS.forEach(m => { e[m.key] = ""; });
+  METRICS.forEach(m => {
+    e[m.key] = (m.key === "jump") ? { stand: "", jump: "" } : "";
+  });
   return e;
 }
 
@@ -957,16 +1020,16 @@ function emptyEntry() {
 const TEST_PROTOCOLS = {
   jump: {
     title: "垂直起跳 Vertical Jump",
-    measure: "記錄「摸高差」= 起跳最高觸及點 − 站立摸高，單位公分 (cm)。",
+    measure: "分別記錄「初始高度」(站立摸高) 與「跳躍高度」(起跳最高觸及點),單位公分 (cm)。系統會自動計算摸高差 = 跳躍高度 − 初始高度。",
     equipment: "牆面或垂直跳測量器 (Vertec)、粉筆或測量貼點、捲尺。",
     steps: [
-      "球員側身貼牆站直，手臂向上完全伸直，記錄站立摸高 (cm)。",
+      "球員側身貼牆站直，手臂向上完全伸直，記錄「初始高度」(站立摸高,cm)。",
       "雙腳與肩同寬，原地下蹲後全力垂直起跳，於最高點以手指觸點。",
       "不可助跑、不可墊步，僅能原地起跳。",
-      "測 3 次，取最高一次的觸及點。",
-      "摸高差 = 最高觸及點 − 站立摸高。"
+      "測 3 次，取最高一次的觸及點作為「跳躍高度」。",
+      "在資料輸入頁分別填入「初始」與「跳躍」兩個數值,程式自動算出摸高差並換算分數。"
     ],
-    note: "數值越高越好。建議穿著一般球鞋,於同一面牆統一施測。"
+    note: "數值越高越好。建議穿著一般球鞋,於同一面牆統一施測。每次測驗都重新記錄初始高度,避免球員身高隨年齡變化造成的誤差。"
   },
   agility: {
     title: "禁區四點移動 4-Corner Drill",
@@ -1075,20 +1138,20 @@ function makeSampleData() {
         periods:["2024 H2","2025 H1","2025 H2","2026 H1"],
         players:[
           { id:"p1", name:"John Smith", position:"SG", scores:[
-            {jump:44, agility:13.0, shooting:8,  dribble:16.5, cardio:57, passing:6},
-            {jump:52, agility:12.2, shooting:11, dribble:15.0, cardio:52, passing:8},
-            {jump:58, agility:11.6, shooting:13, dribble:14.0, cardio:48, passing:11},
-            {jump:62, agility:11.0, shooting:15, dribble:13.2, cardio:45, passing:13}]},
+            {jump:{stand:220,jump:264}, agility:13.0, shooting:8,  dribble:16.5, cardio:57, passing:6},
+            {jump:{stand:220,jump:272}, agility:12.2, shooting:11, dribble:15.0, cardio:52, passing:8},
+            {jump:{stand:221,jump:279}, agility:11.6, shooting:13, dribble:14.0, cardio:48, passing:11},
+            {jump:{stand:221,jump:283}, agility:11.0, shooting:15, dribble:13.2, cardio:45, passing:13}]},
           { id:"p2", name:"Mike Davis", position:"PF", scores:[
-            {jump:40, agility:13.4, shooting:7,  dribble:17.0, cardio:60, passing:5},
-            {jump:44, agility:12.6, shooting:9,  dribble:16.0, cardio:56, passing:7},
-            {jump:48, agility:12.0, shooting:11, dribble:15.2, cardio:52, passing:9},
-            {jump:52, agility:11.6, shooting:12, dribble:14.6, cardio:50, passing:11}]},
+            {jump:{stand:228,jump:268}, agility:13.4, shooting:7,  dribble:17.0, cardio:60, passing:5},
+            {jump:{stand:228,jump:272}, agility:12.6, shooting:9,  dribble:16.0, cardio:56, passing:7},
+            {jump:{stand:229,jump:277}, agility:12.0, shooting:11, dribble:15.2, cardio:52, passing:9},
+            {jump:{stand:229,jump:281}, agility:11.6, shooting:12, dribble:14.6, cardio:50, passing:11}]},
           { id:"p3", name:"Chris Lee", position:"PG", scores:[
-            {jump:54, agility:11.8, shooting:11, dribble:14.2, cardio:50, passing:10},
-            {jump:60, agility:11.2, shooting:13, dribble:13.4, cardio:46, passing:12},
-            {jump:64, agility:10.6, shooting:14, dribble:12.8, cardio:43, passing:13},
-            {jump:67, agility:10.2, shooting:16, dribble:12.2, cardio:41, passing:14}]},
+            {jump:{stand:215,jump:269}, agility:11.8, shooting:11, dribble:14.2, cardio:50, passing:10},
+            {jump:{stand:215,jump:275}, agility:11.2, shooting:13, dribble:13.4, cardio:46, passing:12},
+            {jump:{stand:216,jump:280}, agility:10.6, shooting:14, dribble:12.8, cardio:43, passing:13},
+            {jump:{stand:216,jump:283}, agility:10.2, shooting:16, dribble:12.2, cardio:41, passing:14}]},
         ]
       }
     ],
@@ -1259,6 +1322,38 @@ function onRawChange(pid, periodIdx, key, value, inputEl) {
   persist();
 }
 
+// Handler for the Vertical Jump two-input cell (stand-reach + jump-reach).
+// Stores {stand, jump} on the period entry; the score is derived from jump−stand.
+function onJumpChange(pid, periodIdx, which, value, inputEl) {
+  const team = getTeam();
+  const p = team.players.find(p => p.id === pid);
+  if (!p) return;
+  const entry = p.scores[periodIdx];
+  // Migrate legacy plain number to object form on first edit.
+  if (!entry.jump || typeof entry.jump !== "object") {
+    entry.jump = { stand: "", jump: "" };
+  }
+  const trimmed = String(value).trim();
+  let stored = "";
+  if (trimmed !== "") {
+    const num = parseFloat(trimmed);
+    if (!isNaN(num)) stored = Math.round(num);
+    else stored = trimmed;
+  }
+  entry.jump[which] = stored;
+  // Live update the score pill: show Δdiff · score
+  const pill = document.getElementById(`pill-${pid}-${periodIdx}-jump`);
+  if (pill) {
+    const raw = getRawValue(entry, "jump");
+    const sc = rawToScore(raw, "jump");
+    const diffTxt = (raw === "" || raw == null) ? "" : `Δ${Math.round(raw)}`;
+    pill.textContent = diffTxt + (sc > 0 ? " · " + sc.toFixed(1) : "");
+  }
+  if (trimmed !== "" && isNaN(parseFloat(trimmed))) inputEl.classList.add("bad");
+  else inputEl.classList.remove("bad");
+  persist();
+}
+
 // Backup
 function exportData() {
   const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
@@ -1324,7 +1419,7 @@ function calcTeamAvg(team) {
     let sum = 0, n = 0;
     team.players.forEach(p => {
       if (p.scores.length > 0) {
-        sum += rawToScore(p.scores[p.scores.length-1][m.key], m.key);
+        sum += rawToScore(getRawValue(p.scores[p.scores.length-1], m.key), m.key);
         n++;
       }
     });
@@ -1378,10 +1473,22 @@ function setMode(m) { state.mode = m; renderAll(); persist(); }
 
 function renderPlayerBtns() {
   const team = getTeam();
-  if (!team.players.length) { document.getElementById("playerBtns").innerHTML = ""; return; }
-  document.getElementById("playerBtns").innerHTML = team.players.map(p =>
-    `<button class="player-btn${p.id===state.selectedPlayerId?" active":""}" onclick="selectPlayer('${p.id}')">${escapeHTML(p.name)}${p.position?`<span class="pos">${escapeHTML(p.position)}</span>`:""}</button>`
-  ).join("");
+  const host = document.getElementById("playerBtns");
+  if (!team.players.length) { host.innerHTML = ""; return; }
+  // Make sure something is selected
+  if (!team.players.find(p => p.id === state.selectedPlayerId)) {
+    state.selectedPlayerId = team.players[0].id;
+  }
+  const opts = team.players.map(p => {
+    const label = p.position ? `${p.name} · ${p.position}` : p.name;
+    return `<option value="${escapeHTML(p.id)}"${p.id===state.selectedPlayerId?" selected":""}>${escapeHTML(label)}</option>`;
+  }).join("");
+  host.innerHTML = `
+    <label class="player-picker">
+      <span>👤</span>
+      <select onchange="selectPlayer(this.value)" aria-label="Select player">${opts}</select>
+      <span class="pp-count">${team.players.length}</span>
+    </label>`;
 }
 function selectPlayer(id) { state.selectedPlayerId = id; renderDashboard(); persist(); }
 
@@ -1559,8 +1666,8 @@ function renderTrends() {
   if (!player || player.scores.length === 0) { wrap.innerHTML = ""; return; }
   let html = '<div class="trend-grid">';
   METRICS.forEach(m => {
-    const raws = player.scores.map(t => t[m.key]);
-    const vals = player.scores.map(t => rawToScore(t[m.key], m.key));
+    const raws = player.scores.map(t => getRawValue(t, m.key));
+    const vals = raws.map(r => rawToScore(r, m.key));
     const diff = vals[vals.length-1] - vals[0];
     const w=280, h=100, pL=30, pR=10, pT=10, pB=22;
     const plotW=w-pL-pR, plotH=h-pT-pB;
@@ -1828,7 +1935,28 @@ function renderPlayerEditList() {
             <tr>
               <td>${m.emoji} ${m.label}<span class="metric-sub">${m.sub} · ${m.unit}${m.higherBetter?' ↑':' ↓'}</span></td>
               ${p.scores.map((s, idx) => {
-                const sc = rawToScore(s[m.key], m.key);
+                const raw = getRawValue(s, m.key);
+                const sc = rawToScore(raw, m.key);
+                if (m.key === "jump") {
+                  // Two-input cell: stand reach + jump reach; difference is the measurement
+                  const entry = (s.jump && typeof s.jump === "object") ? s.jump : {stand:"", jump: (s.jump==null||s.jump==="")?"":s.jump};
+                  const sv = (entry.stand!=null && entry.stand!=="") ? Math.round(entry.stand) : "";
+                  const jv = (entry.jump!=null  && entry.jump!=="")  ? Math.round(entry.jump)  : "";
+                  const diffTxt = (raw === "" || raw == null) ? "" : `Δ${Math.round(raw)}`;
+                  return `<td>
+                    <div class="jump-cell">
+                      <label class="jump-lab">初始</label>
+                      <input type="number" min="0" step="1" inputmode="numeric" class="raw-input jump-in"
+                        value="${sv}" placeholder="cm"
+                        oninput="onJumpChange('${p.id}', ${idx}, 'stand', this.value, this)">
+                      <label class="jump-lab">跳躍</label>
+                      <input type="number" min="0" step="1" inputmode="numeric" class="raw-input jump-in"
+                        value="${jv}" placeholder="cm"
+                        oninput="onJumpChange('${p.id}', ${idx}, 'jump', this.value, this)">
+                    </div>
+                    <span class="score-pill" id="pill-${p.id}-${idx}-${m.key}">${diffTxt} ${sc>0?'· '+sc.toFixed(1):''}</span>
+                  </td>`;
+                }
                 const v = s[m.key];
                 const display = (v != null && v !== "") ? (m.decimals === 0 ? Math.round(v) : v) : "";
                 return `<td>
@@ -2205,6 +2333,7 @@ window.onTeamNameChange = onTeamNameChange;
 window.onPeriodNameChange = onPeriodNameChange;
 window.onPlayerFieldChange = onPlayerFieldChange;
 window.onRawChange = onRawChange;
+window.onJumpChange = onJumpChange;
 window.togglePeriod = togglePeriod;
 window.setMode = setMode;
 window.setView = setView;
